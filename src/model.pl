@@ -6,7 +6,7 @@ initial_state(GameConfig, GameState) :-
     % Initialize the board and place pawns
     initial_board(Board),
     max_stack_size(Board, MaxStackSize),
-    GameState = [player1, Board, (1,5), (5,1), (1,1), (5,5), MaxStackSize, 1 | GameConfig].
+    GameState = [player1, Board, (5,1), (1,5), (1,1), (5,5), MaxStackSize, 1, (-1, -1) | GameConfig].
 
 print_game_state(GameState) :-
     format('GameState: ~w~n', [GameState]).
@@ -35,6 +35,7 @@ max_stack_size(Board, MaxStackSize) :-
     number_of_digits(MaxStack, MaxStackSize).
 
 % Calculate the number of digits in a number
+number_of_digits(0,1).
 number_of_digits(Number, Digits) :-
     Number > 0,
     Digits is floor(log(Number) / log(10)) + 1.
