@@ -52,6 +52,7 @@ choose_player_names(Player1Type, Player2Type, Player1Name, Player2Name) :-
         Player2Name = 'PC2'
     ).
 
+% por o nome certo do winner
 % Check if the game is over
 game_loop(GameState) :-
     game_over(GameState, Winner), !,
@@ -272,6 +273,8 @@ valid_moves_pieces([player2, Board, P1C1, P1C2, P2C1, P2C2 | _], ListOfMoves) :-
             Moves),
     remove_duplicates(Moves, ListOfMoves).
 
+
+%ver encontrar minimo da peça, tem de ser feito depois maybe
 % Valid move for piece
 valid_move_piece(Board, (OldCol, OldRow), (NewCol, NewRow), P1C1, P1C2, P2C1, P2C2) :-
     (NewCol, NewRow) \= P1C1,
@@ -337,10 +340,19 @@ valid_move_stone(Board, (FromCol, FromRow), (ToCol, ToRow), PrevPosition, P1C1, 
 
 % Find positions with the least number of stones
 find_least_stone_positions(Board, PrevPosition, P1C1, P1C2, P2C1, P2C2, LeastStonePositions) :-
-    flatten(Board, FlatBoard),
-    exclude(=(0), FlatBoard, NonZeroStones),
-    min_list(NonZeroStones, MinStones),
     length(Board, NumRows),
+    findall(Cell, (
+        nth1(AdjustedRow, Board, RowList),
+        nth1(Col, RowList, Cell),
+        Row is NumRows - AdjustedRow + 1,
+        (Col, Row) \= PrevPosition,
+        (Col, Row) \= P1C1,
+        (Col, Row) \= P1C2,
+        (Col, Row) \= P2C1,
+        (Col, Row) \= P2C2,
+        Cell > 0
+    ), NonZeroStones),
+    min_list(NonZeroStones, MinStones),
     findall((Col, Row), (
         nth1(AdjustedRow, Board, RowList),
         nth1(Col, RowList, MinStones),
@@ -390,6 +402,7 @@ valid_moves(GameState, ListOfMoves) :-
     ;
         valid_moves_stone(GameState, ListOfMoves)
     ).
+
 
 % Check if the game is over and identify the winner
 game_over(GameState, Winner) :-
