@@ -16,6 +16,7 @@ start_game(Player1Type, Player2Type, Player1Name, Player2Name) :-
     write('Starting game...'), nl,
     format('Player 1: ~w (~w), Player 2: ~w (~w)~n~n', [Player1Name, Player1Type, Player2Name, Player2Type]),
     initial_state([Player1Type, Player2Type, Player1Name, Player2Name], GameState),
+    display_game(GameState),
     game_loop(GameState).
 
 % Handle the user's choice.
@@ -61,9 +62,9 @@ game_loop(GameState) :-
 
 % Main game loop
 game_loop(GameState) :-
-    display_game(GameState),
     choose_move(GameState, 1, Move),
     move(GameState, Move, NewGameState),
+    display_game(NewGameState),
     game_loop(NewGameState).
 
 % checkar copilot, maybe fazer um metodo para gerar 
