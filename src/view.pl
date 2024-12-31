@@ -74,8 +74,14 @@ format_cell(Cell, Row, Col, P1C1, P1C2, P2C1, P2C2, MaxStackSize) :-
     ; (Col, Row) = P1C2 -> format_piece('-W2-', MaxStackSize)
     ; (Col, Row) = P2C1 -> format_piece('-B1-', MaxStackSize)
     ; (Col, Row) = P2C2 -> format_piece('-B2-', MaxStackSize)
+    ; Cell = 0 -> format_lava(MaxStackSize)
     ; format_stack(Cell, MaxStackSize)
     ).
+
+
+format_lava(MaxStackSize) :-
+    TotalPadding is 2 * ((MaxStackSize + 1) // 2) + 5,
+    format('~*c|', [TotalPadding, 32]).
 
 % Format the piece content
 format_piece(Piece, MaxStackSize) :-
