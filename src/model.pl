@@ -20,14 +20,15 @@ initial_board(Board) :-
         [1,1,1,1,1]
     ].
 
-% Custom implementation of flatten/2
+
+% Helper predicate to flatten a nested list
 flatten([], []).
-flatten([Head|Tail], FlatList) :-
-    flatten(Head, FlatHead),
-    flatten(Tail, FlatTail),
-    append(FlatHead, FlatTail, FlatList).
-flatten(Element, [Element]) :-
-    \+ is_list(Element).
+flatten([L|Ls], FlatL) :-
+    !,
+    flatten(L, NewL),
+    flatten(Ls, NewLs),
+    append(NewL, NewLs, FlatL).
+flatten(L, [L]).
 
 max_stack_size(Board, MaxStackSize) :-
     flatten(Board, FlatBoard),
@@ -35,7 +36,14 @@ max_stack_size(Board, MaxStackSize) :-
     number_of_digits(MaxStack, MaxStackSize).
 
 % Calculate the number of digits in a number
-number_of_digits(0,1).
+number_of_digits(0, 1) :- !.
 number_of_digits(Number, Digits) :-
     Number > 0,
-    Digits is floor(log(Number) / log(10)) + 1.
+    number_of_digits_recursive(Number, Digits).
+
+number_of_digits_recursive(0, 0) :- !.
+number_of_digits_recursive(Number, Digits) :-
+    Number > 0,
+    NextNumber is Number // 10,
+    number_of_digits_recursive(NextNumber, NextDigits),
+    Digits is NextDigits + 1.

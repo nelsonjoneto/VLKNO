@@ -9,75 +9,51 @@ display_game([player2, Board, P1C1, P1C2, P2C1, P2C2, MaxStackSize, _, _ , _, _,
     display_stones(Board, P1C1, P1C2, P2C1, P2C2),
     format('Current player: ~w~n', [Player2Name]).
 
-%value pode ser o valor total de stones que rodeiam as peças do adversário, tendo em conta o numero de moves disponiveis, algo tipo stones per Move
-%pode ser a jogada que gera maior diferença entre esse value para mim e para ele
-%acrescentar boolean isMoving
-
-% Display the board with pieces and numeration
 display_board(Board, P1C1, P1C2, P2C1, P2C2, MaxStackSize) :-
     length(Board, N),
     number_of_digits(N, MaxRowDigits),
-    custom_numlist(1, N, Cols),
-    nl, format('~*c', [MaxRowDigits + 1, 32]), print_column_numbers(Cols, MaxStackSize), nl,
-    format('~*c', [MaxRowDigits + 1, 32]), print_separator_line(N, MaxStackSize), nl,
-    reverse(Cols, RevRows),
-    maplist(display_row(Board, P1C1, P1C2, P2C1, P2C2, MaxStackSize, MaxRowDigits), RevRows).
+    max_stack_size(Board, MaxStackSize),
+    nl, format('~*|', [MaxRowDigits + 1]),
+    BaseWidthCols is 2 * ((MaxStackSize + 1) // 2) + 6,
+    PaddingBeginning is BaseWidthCols // 2,
+    PaddingEnd is BaseWidthCols - PaddingBeginning,
+    print_column_numbers(1, N, PaddingBeginning, PaddingEnd),
+    TotalWidth is BaseWidthCols * N + 1,
+    print_separator(MaxRowDigits, TotalWidth),
+    display_row(Board, P1C1, P1C2, P2C1, P2C2, MaxStackSize, MaxRowDigits, N, N, TotalWidth).
 
-% Print the column numbers above the cells
-print_column_numbers([], _).
-print_column_numbers([Col|Cols], MaxStackSize) :-
-    number_of_digits(Col, Digits),
-    BaseWidth is 2 * ((MaxStackSize + 1) // 2) + 6,
-    PaddingBeginning is BaseWidth // 2,
-    PaddingEnd is BaseWidth - PaddingBeginning - Digits,
-    format('~*c~w~*c', [PaddingBeginning, 32, Col, PaddingEnd, 32]),
-    print_column_numbers(Cols, MaxStackSize).
-
-% Print the separator line
-print_separator_line(0, _) :- write('-').
-print_separator_line(N, MaxStackSize) :-
-    N > 0,
-    Length is 2 * ((MaxStackSize + 1) // 2) + 6,
-    print_n_chars(Length, '-'),
-    N1 is N - 1,
-    print_separator_line(N1, MaxStackSize).
-
-% Helper predicate to print a given character N times
-print_n_chars(0, _).
-print_n_chars(N, Char) :-
-    N > 0,
-    write(Char),
-    N1 is N - 1,
-    print_n_chars(N1, Char).
-
-% Display a row of the board
-display_row(Board, P1C1, P1C2, P2C1, P2C2, MaxStackSize, MaxRowDigits, Row) :-
-    length(Board, TotalRows),
-    AdjustedRow is TotalRows - Row + 1,
+display_row(_, _, _, _, _, _, _, 0, _, _).
+display_row(Board, P1C1, P1C2, P2C1, P2C2, MaxStackSize, MaxRowDigits, Row, TotalColsRows, TotalWidth) :-
+    Row > 0,
+    AdjustedRow is TotalColsRows - Row + 1,
     nth1(AdjustedRow, Board, BoardRow),
     number_of_digits(Row, RowDigits),
     format('~w~*c|', [Row, (MaxRowDigits - RowDigits) + 1, 32]),
-    length(BoardRow, N),
-    custom_numlist(1, N, Cols),
-    maplist(display_cell(BoardRow, Row, P1C1, P1C2, P2C1, P2C2, MaxStackSize), Cols),
-    nl,
-    format('~*c', [MaxRowDigits + 1, 32]), print_separator_line(N, MaxStackSize), nl.
+    display_cell(BoardRow, Row, P1C1, P1C2, P2C1, P2C2, MaxStackSize, 1, TotalColsRows),
+    print_separator(MaxRowDigits, TotalWidth),
+    NewRow is Row - 1,
+    display_row(Board, P1C1, P1C2, P2C1, P2C2, MaxStackSize, MaxRowDigits, NewRow, TotalColsRows, TotalWidth).
 
-% Display a cell of the board
-display_cell(BoardRow, Row, P1C1, P1C2, P2C1, P2C2, MaxStackSize, Col) :-
+display_cell(_, _, _, _, _, _, _, Col, TotalColsRows) :-
+    Col > TotalColsRows.
+display_cell(BoardRow, Row, P1C1, P1C2, P2C1, P2C2, MaxStackSize, Col, TotalColsRows) :-
     nth1(Col, BoardRow, Cell),
-    format_cell(Cell, Row, Col, P1C1, P1C2, P2C1, P2C2, MaxStackSize).
+    format_cell(Cell, (Col, Row), P1C1, P1C2, P2C1, P2C2, MaxStackSize),
+    NewCol is Col + 1,
+    display_cell(BoardRow, Row, P1C1, P1C2, P2C1, P2C2, MaxStackSize, NewCol, TotalColsRows).
 
-% Format the cell content based on the maximum stack size
-format_cell(Cell, Row, Col, P1C1, P1C2, P2C1, P2C2, MaxStackSize) :-
-    ( (Col, Row) = P1C1 -> format_piece('-W1-', MaxStackSize)
-    ; (Col, Row) = P1C2 -> format_piece('-W2-', MaxStackSize)
-    ; (Col, Row) = P2C1 -> format_piece('-B1-', MaxStackSize)
-    ; (Col, Row) = P2C2 -> format_piece('-B2-', MaxStackSize)
-    ; Cell = 0 -> format_lava(MaxStackSize)
-    ; format_stack(Cell, MaxStackSize)
-    ).
-
+format_cell(0, _, _, _, _, _, MaxStackSize) :-
+    format_lava(MaxStackSize).
+format_cell(Cell, P1C1, P1C1, _, _, _, MaxStackSize) :-
+    format_piece('-W1-', MaxStackSize).
+format_cell(Cell, P1C2, _, P1C2, _, _, MaxStackSize) :-
+    format_piece('-W2-', MaxStackSize).
+format_cell(Cell, P2C1, _, _, P2C1, _, MaxStackSize) :-
+    format_piece('-B1-', MaxStackSize).
+format_cell(Cell, P2C2, _, _, _, P2C2, MaxStackSize) :-
+    format_piece('-B2-', MaxStackSize).
+format_cell(Cell, _, _, _, _, _, MaxStackSize) :-
+    format_stack(Cell, MaxStackSize).
 
 format_lava(MaxStackSize) :-
     TotalPadding is 2 * ((MaxStackSize + 1) // 2) + 5,
@@ -97,6 +73,24 @@ format_stack(Stack, MaxStackSize) :-
     PaddingBeginning is TotalPadding - PaddingEnd,
     format('~*c(~w)~*c|', [PaddingBeginning, 32, Stack, PaddingEnd, 32]).
 
+
+% Print the separator line
+print_separator(MaxRowDigits, TotalWidth) :-
+    nl,
+    format('~*|', [MaxRowDigits + 1]),
+    format('~*c', [TotalWidth, 45]),
+    nl.
+
+% Print the column numbers above the cells
+print_column_numbers(CurrentCol, NumCols, PaddingBeginning, PaddingEnd) :-
+    CurrentCol =< NumCols,
+    number_of_digits(CurrentCol, Digits),
+    format('~*c~w~*c', [PaddingBeginning, 32, CurrentCol, PaddingEnd - Digits, 32]),
+    NextCol is CurrentCol + 1,
+    print_column_numbers(NextCol, NumCols, PaddingBeginning, PaddingEnd).
+print_column_numbers(CurrentCol, NumCols, _, _) :-
+    CurrentCol > NumCols.
+
 % Display the number of stones stacked in each occupied position by each piece
 display_stones(Board, P1C1, P1C2, P2C1, P2C2) :-
     stones_at_position(Board, P1C1, StonesW1),
@@ -114,16 +108,6 @@ stones_at_position(Board, (Col, Row), Stones) :-
     AdjustedRow is TotalRows - Row + 1,
     nth1(AdjustedRow, Board, BoardRow),
     nth1(Col, BoardRow, Stones).
-
-% Custom implementation of numlist/3
-custom_numlist(Low, High, List) :-
-    (Low =< High ->
-        List = [Low | Rest],
-        NextLow is Low + 1,
-        custom_numlist(NextLow, High, Rest)
-    ;
-        List = []
-    ).
 
 % Display the game menu.
 display_menu :-
