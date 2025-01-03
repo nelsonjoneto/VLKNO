@@ -5,8 +5,7 @@
 initial_state(GameConfig, GameState) :-
     % Initialize the board and place pawns
     initial_board(Board),
-    max_stack_size(Board, MaxStackSize),
-    GameState = [player1, Board, (5,1), (1,5), (1,1), (5,5), MaxStackSize, 1, (-1, -1) | GameConfig].
+    GameState = [player1, Board, (5,1), (1,5), (1,1), (5,5) | GameConfig].
 
 print_game_state(GameState) :-
     format('GameState: ~w~n', [GameState]).
@@ -20,6 +19,9 @@ initial_board(Board) :-
         [1,1,1,1,1]
     ].
 
+%valid_moves_pieces(player1, [[1,1,1,1,1],[1,1,1,1,1],[1,1,1,1,1],[1,1,1,1,1],[1,1,1,1,1]], (5,1), (1,5), (1,1), (5,5), ListOfMoves).
+%valid_moves_pieces(player1, [[1,1,1,1,1],[1,1,1,1,1],[1,1,1,1,1],[1,1,1,10,10],[1,1,1,10,1]], (5,1), (1,5), (1,1), (5,5), ListOfMoves).
+%valid_moves([player1, [[1,1,1,1,1],[1,1,1,1,1],[1,1,1,1,1],[1,1,1,1,1],[1,1,1,1,1]], (5,1), (1,5), (1,1), (5,5), 1], ListOfMoves).
 
 % Helper predicate to flatten a nested list
 flatten([], []).

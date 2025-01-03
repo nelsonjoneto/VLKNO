@@ -41,20 +41,37 @@ handle_choice(_) :-
     handle_choice(Choice).
 
 % Choose player names
-choose_player_names(Player1Type, Player2Type, Player1Name, Player2Name) :-
-    (Player1Type = human ->
-        write('Enter name for Player 1: '), read(Player1Name)
-    ;
-        Player1Name = 'PC1'
-    ),
-    (Player2Type = human ->
-        write('Enter name for Player 2: '), read(Player2Name)
-    ;
-        Player2Name = 'PC2'
-    ).
+choose_player_names(human, human, Player1Name, Player2Name) :-
+    write('Enter name for Player 1: '), read(Player1Name),
+    write('Enter name for Player 2: '), read(Player2Name).
+choose_player_names(human, computer, Player1Name, Player2Name) :-
+    write('Enter name for Player 1: '), read(Player1Name),
+    Player2Name = 'PC2'.
+choose_player_names(computer, human, Player1Name, Player2Name) :-
+    Player1Name = 'PC1',
+    write('Enter name for Player 2: '), read(Player2Name).
 
-% por o nome certo do winner
-% Check if the game is over
+
+%implementar diferentes nives de dificuldade para o computador
+
+/*
+    é interessante ver também a jogadas que resulta no maior número de movimentos possíveis futuros
+
+
+    dfs ou bfs para ver a rede conectada de cada jogador, atribuindo pontos
+    em caso de empate, vemos as casas à volta da rede, se forem vazias dao 2 pontos ao adversario
+    ou pode ser tipo percentagem da rede bloqueada por casas vazias
+    se forem ocupadas pelo adversario dao 1 ponto ao adversario,
+    se forem ocupadas por stacks nao subiveis, calc
+
+*/
+
+
+%ver quais os moves validos para cada peça para o jogador humano e so dar esses como opção
+%maybe criar um pause button 
+%implementar diferentes tamanhos
+%implementar IO gira (ver mansur)
+
 game_loop(GameState) :-
     game_over(GameState, Winner), !,
     write('Game over! Winner: '),
@@ -64,80 +81,110 @@ game_loop(GameState) :-
 game_loop(GameState) :-
     choose_move(GameState, 1, Move),
     move(GameState, Move, NewGameState),
-    display_game(NewGameState),
+    display_game(NewGameState), !,
     game_loop(NewGameState).
 
-% checkar copilot, maybe fazer um metodo para gerar 
-% todos os movimentos possíveis logo e cagar para validation
-% usar sempre validation para verificar se o movimento é válido 
-% em vez de ver se é membro da lista de movimentos possíveis
-% update nas duas listas e ver no que dá
-choose_move([player1, Board, P1C1, P1C2, P2C1, P2C2, _, IsMoving, PrevPosition , computer | _], 1, Move) :-
-    valid_moves([player1, Board, P1C1, P1C2, P2C1, P2C2, _, IsMoving, PrevPosition , computer | _], ListOfMoves),
+choose_move([player1, Board, P1C1, P1C2, P2C1, P2C2, computer | _], 1, Move) :-
+    valid_moves([player1, Board, P1C1, P1C2, P2C1, P2C2 | _], ListOfMoves),
     random_member(Move, ListOfMoves).
-choose_move([player2, Board, P1C1, P1C2, P2C1, P2C2, _, IsMoving, PrevPosition , _, computer | _], 1, Move) :-
-    valid_moves([player2, Board, P1C1, P1C2, P2C1, P2C2, _, IsMoving, PrevPosition , _, computer | _], ListOfMoves),
+choose_move([player2, Board, P1C1, P1C2, P2C1, P2C2, _, computer | _], 1, Move) :-
+    valid_moves([player2, Board, P1C1, P1C2, P2C1, P2C2 | _], ListOfMoves),
     random_member(Move, ListOfMoves).
-choose_move([player1, Board, P1C1, P1C2, P2C1, P2C2, _, 1, _ , human | _], _, Move) :-
+choose_move([player1, Board, P1C1, P1C2, P2C1, P2C2, human | _], _, Move) :-
+    ask_piece_and_direction(player1, Board, P1C1, P1C2, P2C1, P2C2, (OldPiecePos, NewPiecePos)),
+    ask_stone_movement(Board, P1C1, P1C2, P2C1, P2C2, NewPiecePos, (OldStonePos, NewStonePos)),
+    Move = (OldPiecePos, NewPiecePos, OldStonePos, NewStonePos).
+choose_move([player2, Board, P1C1, P1C2, P2C1, P2C2, _, human | _], _, Move) :-
+    ask_piece_and_direction(player2, Board, P1C1, P1C2, P2C1, P2C2, (OldPiecePos, NewPiecePos)),
+    ask_stone_movement(Board, P1C1, P1C2, P2C1, P2C2, NewPiecePos, (OldStonePos, NewStonePos)),
+    Move = (OldPiecePos, NewPiecePos, OldStonePos, NewStonePos).
+    
+
+ask_stone_movement(Board, P1C1, P1C2, P2C1, P2C2, NewPiecePos, (OldStonePos, NewStonePos)) :-
+    find_min_height_stack(Board, NewPiecePos, P1C1, P1C2, P2C1, P2C2, MinHeightStack),
     repeat,
-    ask_piece(player1, Piece),
-    (Piece = w1 -> (OldCol, OldRow) = P1C1 ; Piece = w2 -> (OldCol, OldRow) = P1C2),
-    ask_direction(Direction),
+    write('Choose a stack to remove a stone from ("Column,Row")'),
+    read(OldStonePos),
+    ensure_valid_least_stone_position(Board, OldStonePos, MinHeightStack, NewPiecePos, P1C1, P1C2, P2C1, P2C2), !,
+    repeat,
+    write('Choose a stack to place a stone in ("Column,Row")'),
+    read(NewStonePos),
+    ensure_valid_unoccupied_position(Board, OldStonePos, NewPiecePos, NewStonePos, P1C1, P1C2, P2C1, P2C2),
+    !.
+
+ask_piece_and_direction(player1, Board, P1C1, P1C2, P2C1, P2C2, (OldPiecePos, NewPiecePos)) :-
+    repeat,
+    write('Choose a piece to move ("w1", "w2"): '),
+    read(InputPiece),
+    validate_piece(player1, InputPiece, Piece), !,
+    repeat,
+    write('Choose the direction ("up", "down", "left", "right", "upleft", "upright", "downleft", "downright"): '),
+    read(InputDirection),
+    once(validate_direction(InputDirection, Direction)),
+    get_piece_position(player1, Piece, P1C1, P1C2, OldPiecePos),
+    ensure_valid_move(Board, OldPiecePos, Direction, P1C1, P1C2, P2C1, P2C2, NewPiecePos),
+    !.
+ask_piece_and_direction(player2, Board, P1C1, P1C2, P2C1, P2C2, (OldPiecePos, NewPiecePos)) :-
+    repeat,
+    write('Choose a piece to move ("b1", "b2"): '),
+    read(InputPiece),
+    validate_piece(player2, InputPiece, Piece), !,
+    repeat,
+    write('Choose the direction ("up", "down", "left", "right", "upleft", "upright", "downleft", "downright"): '),
+    read(InputDirection),
+    once(validate_direction(InputDirection, Direction)),
+    get_piece_position(player2, Piece, P2C1, P2C2, OldPiecePos),
+    ensure_valid_move(Board, OldPiecePos, Direction, P1C1, P1C2, P2C1, P2C2, NewPiecePos),
+    !.
+
+validate_piece(player1, w1, w1).
+validate_piece(player1, w2, w2).
+validate_piece(player2, b1, b1).
+validate_piece(player2, b2, b2).
+validate_piece(_, _, _) :-
+    write('Invalid piece, try again.'), nl,
+    fail.
+
+get_piece_position(player1, w1, P1C1, _, P1C1).
+get_piece_position(player1, w2, _, P1C2, P1C2).
+get_piece_position(player2, b1, P2C1, _, P2C1).
+get_piece_position(player2, b2, _, P2C2, P2C2).
+
+% Predicate to check if a direction is valid
+validate_direction(up, up).
+validate_direction(down, down).
+validate_direction(left, left).
+validate_direction(right, right).
+validate_direction('upleft', 'upleft').
+validate_direction('upright', 'upright').
+validate_direction('downleft', 'downleft').
+validate_direction('downright', 'downright').
+validate_direction(_,_) :-
+    write('Invalid direction, try again.'), nl,
+    fail.
+
+% Ensure the move is valid and calculate the new position
+ensure_valid_move(Board, (OldCol, OldRow), Direction, P1C1, P1C2, P2C1, P2C2, (NewCol, NewRow)) :-
     direction_offset(Direction, (ColOffset, RowOffset)),
     NewCol is OldCol + ColOffset,
     NewRow is OldRow + RowOffset,
-    Move = (Piece, (NewCol, NewRow)),
-    (valid_move_piece(Board, (OldCol, OldRow), (NewCol, NewRow), P1C1, P1C2, P2C1, P2C2) ->
-        !
-    ;
-        write('Invalid move, try again.'), nl,
-        fail
-    ).
-choose_move([player2, Board, P1C1, P1C2, P2C1, P2C2, _, 1, _ , _, human | _], _, Move) :-
-    repeat,
-    ask_piece(player2, Piece),
-    (Piece = b1 -> (OldCol, OldRow) = P2C1 ; Piece = b2 -> (OldCol, OldRow) = P2C2),
-    ask_direction(Direction),
-    direction_offset(Direction, (ColOffset, RowOffset)),
-    NewCol is OldCol + ColOffset,
-    NewRow is OldRow + RowOffset,
-    Move = (Piece, (NewCol, NewRow)),
-    (valid_move_piece(Board, (OldCol, OldRow), (NewCol, NewRow), P1C1, P1C2, P2C1, P2C2) ->
-        !
-    ;
-        write('Invalid move, try again.'), nl,
-        fail
-    ).
-choose_move([_, Board, P1C1, P1C2, P2C1, P2C2, _, 0 , PrevPosition | _], _, Move) :-  
-    repeat,
-    find_least_stone_positions(Board, PrevPosition, P1C1, P1C2, P2C1, P2C2, LeastStonePositions),
-    display_available_places_to_remove_stone(LeastStonePositions),
-    ask_stone_from(LeastStonePositions, FromPos),
-    ask_stone_to(ToPos),
-    Move = (FromPos, ToPos),
-    (valid_move_stone(Board, (FromPos), ToPos, PrevPosition, P1C1, P1C2, P2C1, P2C2) ->
-        !
-    ;
-        write('Invalid move, try again.'), nl,
-        fail
-    ).
+    valid_move_piece(Board, (OldCol, OldRow), (NewCol, NewRow), P1C1, P1C2, P2C1, P2C2).
+ensure_valid_move(_, _, _, _, _, _, _, _) :-
+    write('Invalid piece move, try again.'), nl,
+    fail.
 
-ask_stone_from(LeastStonePositions, FromPos) :-
-    repeat,
-    write('Enter the position to remove a stone from: '), nl,
-    read(UserInput),
-    ( member(UserInput, LeastStonePositions) ->
-        FromPos = UserInput
-    ;
-        write('Invalid position, try again.'), nl,
-        fail
-    ).
-
-ask_stone_to(ToPos) :-
-    repeat,
-    write('Enter the position you want to place a stone in: '), nl,
-    read(UserInput),
-    ToPos = UserInput.
+ensure_valid_least_stone_position(Board, OldStonePos, MinHeightStack, NewPiecePos, P1C1, P1C2, P2C1, P2C2) :-
+    valid_least_stone_position(Board, OldStonePos, MinHeightStack, NewPiecePos, P1C1, P1C2, P2C1, P2C2).
+ensure_valid_least_stone_position(_, _, _, _, _, _, _, _) :-
+    write('Invalid stack, try again.'), nl,
+    write('You can only pick up a stone from one of the smallest unoccupied stacks on the board, except the one you just moved your piece from.'), nl,
+    fail.
+ensure_valid_unoccupied_position(Board, OldStonePos, NewPiecePos, NewStonePos, P1C1, P1C2, P2C1, P2C2) :-
+    valid_unoccupied_position(Board, OldStonePos, NewPiecePos, NewStonePos, P1C1, P1C2, P2C1, P2C2).
+ensure_valid_unoccupied_position(_, _, _, _, _, _, _, _) :-
+    write('Invalid stack, try again.'), nl,
+    write('You can only place a stone on an unoccupied stack of 1+ stones, except the one you just moved your piece from.'), nl,
+    fail.
 
 display_available_places_to_remove_stone(LeastStonePositions) :-
     write('Available positions to remove a stone from: '), nl,
@@ -147,47 +194,19 @@ display_available_places_to_remove_stone(LeastStonePositions) :-
 display_position((Col, Row)) :-
     format('(~w,~w) ', [Col, Row]).
 
-ask_piece(player1, Piece) :-
-    repeat,
-    write('Choose the piece you want to move (w1, w2): '),
-    read(UserInput),
-    ( member(UserInput, [w1, w2]) ->
-        Piece = UserInput
-    ;
-        write('Invalid piece, try again.'), nl,
-        fail
-    ).
 
-ask_piece(player2, Piece) :-
-    repeat,
-    write('Choose the piece you want to move (b1, b2): '),
-    read(UserInput),
-    (member(UserInput, [b1, b2]) ->
-        Piece = UserInput
-    ;
-        write('Invalid piece, try again.'), nl,
-        fail
-    ).
-
-ask_direction(Direction) :-
-    repeat,
-    write('Enter your move (up, down, left, right, up-left, up-right, down-left, down-right): '),
-    read(UserInput),
-    valid_direction(UserInput),
-    !,
-    Direction = UserInput.
-
-% Predicate to check if a direction is valid
-valid_direction(Direction) :-
-    member(Direction, [up, down, left, right, 'up-left', 'up-right', 'down-left', 'down-right']).
-
-move(GameState, Move, NewGameState) :-
-    GameState = [PlayerTurn, Board, P1C1, P1C2, P2C1, P2C2, MaxStackSize, IsMoving | Rest],
-    (IsMoving =:= 1 ->
-        move_piece(GameState, Move, NewGameState)
-    ;
-        move_stone(GameState, Move, NewGameState)
-    ).
+move([player1, Board, P1C1, P1C2, P2C1, P2C2 | Rest], (P1C1, NewPiecePos, OldStonePos, NewStonePos), NewGameState) :-
+    update_board(Board, OldStonePos, NewStonePos, NewBoard),
+    NewGameState = [player2, NewBoard, NewPiecePos, P1C2, P2C1, P2C2 | Rest].
+move([player1, Board, P1C1, P1C2, P2C1, P2C2 | Rest], (P1C2, NewPiecePos, OldStonePos, NewStonePos), NewGameState) :-
+    update_board(Board, OldStonePos, NewStonePos, NewBoard),
+    NewGameState = [player2, NewBoard, P1C1, NewPiecePos, P2C1, P2C2 | Rest].
+move([player2, Board, P1C1, P1C2, P2C1, P2C2 | Rest], (P2C1, NewPiecePos, OldStonePos, NewStonePos), NewGameState) :-
+    update_board(Board, OldStonePos, NewStonePos, NewBoard),
+    NewGameState = [player1, NewBoard, P1C1, P1C2, NewPiecePos, P2C2 | Rest].
+move([player2, Board, P1C1, P1C2, P2C1, P2C2 | Rest], (P2C2, NewPiecePos, OldStonePos, NewStonePos), NewGameState) :-
+    update_board(Board, OldStonePos, NewStonePos, NewBoard),
+    NewGameState = [player1, NewBoard, P1C1, P1C2, P2C1, NewPiecePos | Rest].
 
 % Move piece
 move_piece(GameState, (Piece, NewPos), NewGameState) :-
@@ -243,127 +262,54 @@ replace_nested([Row|RestRows], RowIndex, Col, NewValue, [Row|NewRestRows]) :-
     RowIndex1 is RowIndex - 1,
     replace_nested(RestRows, RowIndex1, Col, NewValue, NewRestRows).
 
-remove_duplicates([], []).
-remove_duplicates([H|T], List) :-
-    member(H, T),
-    !,
-    remove_duplicates(T, List).
-remove_duplicates([H|T], [H|T1]) :-
-    remove_duplicates(T, T1).
-
-valid_moves_pieces([player1, Board, P1C1, P1C2, P2C1, P2C2 | _], ListOfMoves) :-
-    Pieces = [(w1, P1C1), (w2, P1C2)],
-    findall((Piece, (NewCol, NewRow)),
-            (   member((Piece, (OldCol, OldRow)), Pieces),
-                direction_offset(Direction, (ColOffset, RowOffset)),
-                NewCol is OldCol + ColOffset,
-                NewRow is OldRow + RowOffset,
-                valid_move_piece(Board, (OldCol, OldRow), (NewCol, NewRow), P1C1, P1C2, P2C1, P2C2)
-            ),
-            Moves),
-    remove_duplicates(Moves, ListOfMoves).
-valid_moves_pieces([player2, Board, P1C1, P1C2, P2C1, P2C2 | _], ListOfMoves) :-
-    Pieces = [(b1, P2C1), (b2, P2C2)],
-    findall((Piece, (NewCol, NewRow)),
-            (   member((Piece, (OldCol, OldRow)), Pieces),
-                direction_offset(Direction, (ColOffset, RowOffset)),
-                NewCol is OldCol + ColOffset,
-                NewRow is OldRow + RowOffset,
-                valid_move_piece(Board, (OldCol, OldRow), (NewCol, NewRow), P1C1, P1C2, P2C1, P2C2)
-            ),
-            Moves),
-    remove_duplicates(Moves, ListOfMoves).
-
-
-%ver encontrar minimo da peça, tem de ser feito depois maybe
-% Valid move for piece
-valid_move_piece(Board, (OldCol, OldRow), (NewCol, NewRow), P1C1, P1C2, P2C1, P2C2) :-
-    (NewCol, NewRow) \= P1C1,
-    (NewCol, NewRow) \= P1C2,
-    (NewCol, NewRow) \= P2C1,
-    (NewCol, NewRow) \= P2C2,
-    length(Board, NumRows),
-    nth1(1, Board, FirstRow),
-    length(FirstRow, NumCols),
-    % Check if the new position is within bounds
-    NewRow > 0, NewRow =< NumRows,
-    NewCol > 0, NewCol =< NumCols,
-    (OldRow \= NewRow ; OldCol \= NewCol),
-    % Adjust coordinates to start from bottom left
-    AdjustedOldRow is NumRows - OldRow + 1,
-    AdjustedNewRow is NumRows - NewRow + 1,
-    nth1(AdjustedOldRow, Board, OldRowList),
-    nth1(OldCol, OldRowList, OldCell),
-    nth1(AdjustedNewRow, Board, NewRowList),
-    nth1(NewCol, NewRowList, NewCell),
-    % Check if the move is valid
-    abs(OldRow - NewRow) =< 1,
-    abs(OldCol - NewCol) =< 1,
-    NewCell =< OldCell + 1,
-    NewCell >= OldCell - 1,
-    NewCell > 0.
-
-
-valid_moves_stone([_, Board, P1C1, P1C2, P2C1, P2C2, _, _, PrevPosition | _], ListOfMoves) :-
-    find_least_stone_positions(Board, PrevPosition, P1C1, P1C2, P2C1, P2C2, LeastStonePositions),
-    findall((FromPos, ToPos),
-            (   member(FromPos, LeastStonePositions),
-                find_unoccupied_positions(Board, FromPos, PrevPosition, P1C1, P1C2, P2C1, P2C2, UnoccupiedPositions),
-                member(ToPos, UnoccupiedPositions)
-            ),
-            ListOfMoves).
-
-% Check if a position is unoccupied and not the previous position
-find_unoccupied_positions(Board, FromPos, PrevPosition, P1C1, P1C2, P2C1, P2C2, UnoccupiedPositions) :-
-    length(Board, NumRows),
-    numlist(1, NumRows, RowColList),
-    findall((Col, Row), (
-        between(1, NumRows, AdjustedRow),
-        nth1(AdjustedRow, Board, RowList),
-        length(RowList, NumCols),
-        between(1, NumCols, Col),
-        Row is NumRows - AdjustedRow + 1,
-        nth1(Col, RowList, Cell),
-        Cell > 0,
-        (Col, Row) \= PrevPosition,
-        (Col, Row) \= P1C1,
-        (Col, Row) \= P1C2,
-        (Col, Row) \= P2C1,
-        (Col, Row) \= P2C2,
-        FromPos \= (Col, Row)
-    ), UnoccupiedPositions).
-
 % Valid move for stone
 valid_move_stone(Board, (FromCol, FromRow), (ToCol, ToRow), PrevPosition, P1C1, P1C2, P2C1, P2C2) :-
     find_least_stone_positions(Board, PrevPosition, P1C1, P1C2, P2C1, P2C2, LeastStonePositions),
     member((FromCol, FromRow), LeastStonePositions),
     valid_unoccupied_position(Board, (ToCol, ToRow), PrevPosition, P1C1, P1C2, P2C1, P2C2).
 
-% Find positions with the least number of stones
-find_least_stone_positions(Board, PrevPosition, P1C1, P1C2, P2C1, P2C2, LeastStonePositions) :-
+
+valid_least_stone_position(Board, (Col, Row), MinHeightStack, CurrentPosition, P1C1, P1C2, P2C1, P2C2) :-
+    length(Board, NumRows),
+    nth1(AdjustedRow, Board, RowList),
+    nth1(Col, RowList, MinHeightStack),
+    Row is NumRows - AdjustedRow + 1,
+    (Col, Row) \= CurrentPosition,
+    (Col, Row) \= P1C1,
+    (Col, Row) \= P1C2,
+    (Col, Row) \= P2C1,
+    (Col, Row) \= P2C2.
+
+find_min_height_stack(Board, CurrentPosition, P1C1, P1C2, P2C1, P2C2, MinHeightStack) :- 
     length(Board, NumRows),
     findall(Cell, (
         nth1(AdjustedRow, Board, RowList),
         nth1(Col, RowList, Cell),
         Row is NumRows - AdjustedRow + 1,
-        (Col, Row) \= PrevPosition,
+        (Col, Row) \= CurrentPosition,
         (Col, Row) \= P1C1,
         (Col, Row) \= P1C2,
         (Col, Row) \= P2C1,
         (Col, Row) \= P2C2,
         Cell > 0
     ), NonZeroStones),
-    min_list(NonZeroStones, MinStones),
+    min_list(NonZeroStones, MinHeightStack).
+
+% Find positions with the least number of stones
+find_least_stone_positions(Board, CurrentPosition, P1C1, P1C2, P2C1, P2C2, LeastStonePositions) :-
+    find_min_height_stack(Board, CurrentPosition, P1C1, P1C2, P2C1, P2C2, MinHeightStack),
+    length(Board, NumRows),
     findall((Col, Row), (
         nth1(AdjustedRow, Board, RowList),
-        nth1(Col, RowList, MinStones),
+        nth1(Col, RowList, MinHeightStack),
         Row is NumRows - AdjustedRow + 1,
-        (Col, Row) \= PrevPosition,
+        (Col, Row) \= CurrentPosition,
         (Col, Row) \= P1C1,
         (Col, Row) \= P1C2,
         (Col, Row) \= P2C1,
         (Col, Row) \= P2C2
     ), LeastStonePositions).
+
 
 % Find the minimum element in a list
 min_list([Min], Min).
@@ -376,34 +322,94 @@ min(X, Y, X) :- X =< Y.
 min(X, Y, Y) :- X > Y.
 
 % Check if a position is unoccupied and not the previous position
-valid_unoccupied_position(Board, (ToCol, ToRow), PrevPosition, P1C1, P1C2, P2C1, P2C2) :-
+valid_unoccupied_position(Board, FromPos, CurrentPosition, (Col, Row), P1C1, P1C2, P2C1, P2C2) :-
     length(Board, NumRows),
-    nth1(1, Board, FirstRow),
-    length(FirstRow, NumCols),
-    % Check if the position is within bounds
-    ToRow > 0, ToRow =< NumRows,
-    ToCol > 0, ToCol =< NumCols,
-    % Adjust coordinates to start from bottom left
-    AdjustedRow is NumRows - ToRow + 1,
+    between(1, NumRows, AdjustedRow),
     nth1(AdjustedRow, Board, RowList),
-    nth1(ToCol, RowList, Cell),
-    % Check if the cell is empty and not the previous position or occupied by any pieces
+    between(1, NumRows, Col),
+    Row is NumRows - AdjustedRow + 1,
+    nth1(Col, RowList, Cell),
     Cell > 0,
-    (ToCol, ToRow) \= PrevPosition,
-    (ToCol, ToRow) \= P1C1,
-    (ToCol, ToRow) \= P1C2,
-    (ToCol, ToRow) \= P2C1,
-    (ToCol, ToRow) \= P2C2.
+    (Col, Row) \= CurrentPosition,
+    (Col, Row) \= P1C1,
+    (Col, Row) \= P1C2,
+    (Col, Row) \= P2C1,
+    (Col, Row) \= P2C2,
+    FromPos \= (Col, Row).
 
 
-valid_moves(GameState, ListOfMoves) :-
-    GameState = [_, Board, _, _, _, _, _, IsMoving, _ | _], 
-    (IsMoving =:= 1 ->
-        valid_moves_pieces(GameState, ListOfMoves)
-    ;
-        valid_moves_stone(GameState, ListOfMoves)
-    ).
+find_unoccupied_positions(Board, FromPos, CurrentPosition, P1C1, P1C2, P2C1, P2C2, UnoccupiedPositions) :-
+    length(Board, NumRows),
+    findall((Col, Row), (
+        between(1, NumRows, AdjustedRow),
+        nth1(AdjustedRow, Board, RowList),
+        between(1, NumRows, Col),
+        Row is NumRows - AdjustedRow + 1,
+        nth1(Col, RowList, Cell),
+        Cell > 0,
+        (Col, Row) \= CurrentPosition,
+        (Col, Row) \= P1C1,
+        (Col, Row) \= P1C2,
+        (Col, Row) \= P2C1,
+        (Col, Row) \= P2C2,
+        FromPos \= (Col, Row)
+    ), UnoccupiedPositions).
 
+valid_moves([PlayerTurn, Board, P1C1, P1C2, P2C1, P2C2 | _], ListOfMoves) :-
+    valid_moves_pieces(PlayerTurn, Board, P1C1, P1C2, P2C1, P2C2, PieceMoves),
+    findall(((PieceMovePrevPosition, PieceMoveCurrentPosition, StoneMovePrevPosition, StoneMoveCurrentPosition)),
+            (
+                member((PieceMovePrevPosition, PieceMoveCurrentPosition), PieceMoves),
+                find_least_stone_positions(Board, PieceMoveCurrentPosition, P1C1, P1C2, P2C1, P2C2, LeastStonePositions),
+                member(StoneMovePrevPosition, LeastStonePositions),
+                find_unoccupied_positions(Board, StoneMovePrevPosition, PieceMoveCurrentPosition, P1C1, P1C2, P2C1, P2C2, UnoccupiedPositions),
+                member(StoneMoveCurrentPosition, UnoccupiedPositions)
+
+            ),
+            ListOfMoves).
+
+
+valid_move_piece(Board, (OldCol, OldRow), (NewCol, NewRow), P1C1, P1C2, P2C1, P2C2) :-
+    (NewCol, NewRow) \= P1C1,
+    (NewCol, NewRow) \= P1C2,
+    (NewCol, NewRow) \= P2C1,
+    (NewCol, NewRow) \= P2C2,
+    length(Board, NumRows),
+    between(1, NumRows, NewCol),
+    between(1, NumRows, NewRow),
+    AdjustedOldRow is NumRows - OldRow + 1,
+    AdjustedNewRow is NumRows - NewRow + 1,
+    nth1(AdjustedOldRow, Board, OldRowList),
+    nth1(OldCol, OldRowList, OldCell),
+    nth1(AdjustedNewRow, Board, NewRowList),
+    nth1(NewCol, NewRowList, NewCell),
+    abs(NewCell - OldCell) =< 1,
+    NewCell > 0.
+
+valid_moves_pieces(player1, Board, P1C1, P1C2, P2C1, P2C2, ListOfMoves) :-
+    Pieces = [P1C1, P1C2],
+    length(Board, NumRows),
+    findall(((OldCol, OldRow), (NewCol, NewRow)),
+          (   
+            member((OldCol, OldRow), Pieces),
+            direction_offset(Direction, (ColOffset, RowOffset)),
+            NewCol is OldCol + ColOffset,
+            NewRow is OldRow + RowOffset,
+            valid_move_piece(Board, (OldCol, OldRow), (NewCol, NewRow), P1C1, P1C2, P2C1, P2C2)
+          ),
+          ListOfMoves).
+valid_moves_pieces(player2, Board, P1C1, P1C2, P2C1, P2C2, ListOfMoves) :-
+    Pieces = [P2C1, P2C2],
+    length(Board, NumRows),
+    findall(((OldCol, OldRow), (NewCol, NewRow)),
+          (   
+            member((OldCol, OldRow), Pieces),
+            direction_offset(Direction, (ColOffset, RowOffset)),
+            NewCol is OldCol + ColOffset,
+            NewRow is OldRow + RowOffset,
+            valid_move_piece(Board, (OldCol, OldRow), (NewCol, NewRow), P1C1, P1C2, P2C1, P2C2)
+          ),
+          ListOfMoves).
 
 % Check if the game is over and identify the winner
 game_over(GameState, Winner) :-
@@ -424,7 +430,7 @@ direction_offset('up', (0, 1)).
 direction_offset('down', (0, -1)).
 direction_offset('left', (-1, 0)).
 direction_offset('right', (1, 0)).
-direction_offset('up-left', (-1, 1)).
-direction_offset('up-right', (1, 1)).
-direction_offset('down-left', (-1, -1)).
-direction_offset('down-right', (1, -1)).
+direction_offset('upleft', (-1, 1)).
+direction_offset('upright', (1, 1)).
+direction_offset('downleft', (-1, -1)).
+direction_offset('downright', (1, -1)).

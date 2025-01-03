@@ -1,15 +1,15 @@
 
 % Display the game state
-display_game([player1, Board, P1C1, P1C2, P2C1, P2C2, MaxStackSize, _, _ , _, _, Player1Name | _]) :-
-    display_board(Board, P1C1, P1C2, P2C1, P2C2, MaxStackSize),
+display_game([player1, Board, P1C1, P1C2, P2C1, P2C2, _, _, Player1Name | _]) :-
+    display_board(Board, P1C1, P1C2, P2C1, P2C2),
     display_stones(Board, P1C1, P1C2, P2C1, P2C2),
     format('Current player: ~w~n', [Player1Name]).
-display_game([player2, Board, P1C1, P1C2, P2C1, P2C2, MaxStackSize, _, _ , _, _, _, Player2Name]) :-
-    display_board(Board, P1C1, P1C2, P2C1, P2C2, MaxStackSize),
+display_game([player2, Board, P1C1, P1C2, P2C1, P2C2, _, _, _, Player2Name]) :-
+    display_board(Board, P1C1, P1C2, P2C1, P2C2),
     display_stones(Board, P1C1, P1C2, P2C1, P2C2),
     format('Current player: ~w~n', [Player2Name]).
 
-display_board(Board, P1C1, P1C2, P2C1, P2C2, MaxStackSize) :-
+display_board(Board, P1C1, P1C2, P2C1, P2C2) :-
     length(Board, N),
     number_of_digits(N, MaxRowDigits),
     max_stack_size(Board, MaxStackSize),
