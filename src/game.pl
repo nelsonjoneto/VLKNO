@@ -87,9 +87,23 @@ game_loop(GameState) :-
 choose_move([player1, Board, P1C1, P1C2, P2C1, P2C2, computer | _], 1, Move) :-
     valid_moves([player1, Board, P1C1, P1C2, P2C1, P2C2 | _], ListOfMoves),
     random_member(Move, ListOfMoves).
+choose_move([player1, Board, P1C1, P1C2, P2C1, P2C2, computer | Rest], 2, Move) :-
+    valid_moves([player1, Board, P1C1, P1C2, P2C1, P2C2 | _], ListOfMoves),
+    setof(Value-Mv, NewState^(
+        member(Mv, ListOfMoves),
+        move([player1, Board, P1C1, P1C2, P2C1, P2C2, computer | Rest], Mv, NewState),
+        value(NewState, player1, Value)
+    ), [_V-Move | _]).
 choose_move([player2, Board, P1C1, P1C2, P2C1, P2C2, _, computer | _], 1, Move) :-
     valid_moves([player2, Board, P1C1, P1C2, P2C1, P2C2 | _], ListOfMoves),
     random_member(Move, ListOfMoves).
+choose_move([player2, Board, P1C1, P1C2, P2C1, P2C2, _, computer | _], 2, Move) :-
+    valid_moves([player2, Board, P1C1, P1C2, P2C1, P2C2 | _], ListOfMoves),
+    setof(Value-Mv, NewState^(
+        member(Mv, ListOfMoves),
+        move([player2, Board, P1C1, P1C2, P2C1, P2C2, _, computer | Rest], Mv, NewState),
+        value(NewState, player2, Value)
+    ), [_V-Move | _]).
 choose_move([player1, Board, P1C1, P1C2, P2C1, P2C2, human | _], _, Move) :-
     ask_piece_and_direction(player1, Board, P1C1, P1C2, P2C1, P2C2, (OldPiecePos, NewPiecePos)),
     ask_stone_movement(Board, P1C1, P1C2, P2C1, P2C2, NewPiecePos, (OldStonePos, NewStonePos)),
@@ -207,6 +221,8 @@ move([player2, Board, P1C1, P1C2, P2C1, P2C2 | Rest], (P2C1, NewPiecePos, OldSto
 move([player2, Board, P1C1, P1C2, P2C1, P2C2 | Rest], (P2C2, NewPiecePos, OldStonePos, NewStonePos), NewGameState) :-
     update_board(Board, OldStonePos, NewStonePos, NewBoard),
     NewGameState = [player1, NewBoard, P1C1, P1C2, P2C1, NewPiecePos | Rest].
+
+
 
 % Move piece
 move_piece(GameState, (Piece, NewPos), NewGameState) :-
@@ -368,6 +384,78 @@ valid_moves([PlayerTurn, Board, P1C1, P1C2, P2C1, P2C2 | _], ListOfMoves) :-
             ),
             ListOfMoves).
 
+% Depth-first search to find all reachable positions from an initial position
+dfs(Board, StartPos, P1C1, P1C2, P2C1, P2C2, Visited) :-
+    dfs(Board, [StartPos], [], Visited, P1C1, P1C2, P2C1, P2C2).
+
+% Base case: when the stack is empty, return the visited nodes
+dfs(_, [], Visited, Visited, _, _, _, _).
+
+% Recursive case: explore neighbors
+dfs(Board, [(OldCol, OldRow)|Rest], Visited, FinalVisited, P1C1, P1C2, P2C1, P2C2) :-
+    \+ member((OldCol, OldRow), Visited),
+    findall((NewCol, NewRow),
+        (
+            direction_offset(Direction, (ColOffset, RowOffset)),
+            NewCol is OldCol + ColOffset,
+            NewRow is OldRow + RowOffset,
+            valid_move_piece(Board, (OldCol, OldRow), (NewCol, NewRow), P1C1, P1C2, P2C1, P2C2),
+            \+ member((NewCol, NewRow), Visited)
+        ),
+        NeighborsPositions),
+    append(NeighborsPositions, Rest, NewStack),
+    dfs(Board, NewStack, [(OldCol, OldRow)|Visited], FinalVisited, P1C1, P1C2, P2C1, P2C2), !.
+
+% If the position is already visited, just proceed with the rest of the stack
+dfs(Board, [(_, _)|Rest], Visited, FinalVisited, P1C1, P1C2, P2C1, P2C2) :-
+    dfs(Board, Rest, Visited, FinalVisited, P1C1, P1C2, P2C1, P2C2).
+
+reachable_positions_difference(Board, P1C1, P1C2, P2C1, P2C2, player1, ReachablePositionsDifference) :-
+    dfs(Board, P1C1, P1C1, P1C2, P2C1, P2C2, ReachablePositionsFromP1C1),
+    dfs(Board, P1C2, P1C1, P1C2, P2C1, P2C2, ReachablePositionsFromP1C2),
+    dfs(Board, P2C1, P1C1, P1C2, P2C1, P2C2, ReachablePositionsFromP2C1),
+    dfs(Board, P2C2, P1C1, P1C2, P2C1, P2C2, ReachablePositionsFromP2C2),
+    length(ReachablePositionsFromP1C1, LengthP1C1),
+    length(ReachablePositionsFromP1C2, LengthP1C2),
+    length(ReachablePositionsFromP2C1, LengthP2C1),
+    length(ReachablePositionsFromP2C2, LengthP2C2),
+    ReachablePositionsDifference is (LengthP2C1 + LengthP2C2) - (LengthP1C1 + LengthP1C2).
+
+reachable_positions_difference(Board, P1C1, P1C2, P2C1, P2C2, player2, ReachablePositionsDifference) :-
+    dfs(Board, P1C1, P1C1, P1C2, P2C1, P2C2, ReachablePositionsFromP1C1),
+    dfs(Board, P1C2, P1C1, P1C2, P2C1, P2C2, ReachablePositionsFromP1C2),
+    dfs(Board, P2C1, P1C1, P1C2, P2C1, P2C2, ReachablePositionsFromP2C1),
+    dfs(Board, P2C2, P1C1, P1C2, P2C1, P2C2, ReachablePositionsFromP2C2),
+    length(ReachablePositionsFromP1C1, LengthP1C1),
+    length(ReachablePositionsFromP1C2, LengthP1C2),
+    length(ReachablePositionsFromP2C1, LengthP2C1),
+    length(ReachablePositionsFromP2C2, LengthP2C2),
+    ReachablePositionsDifference is (LengthP1C1 + LengthP1C2) - (LengthP2C1 + LengthP2C2).
+
+piece_moves_difference(Board, P1C1, P1C2, P2C1, P2C2, player1, PieceMovesDifference) :-
+    valid_moves_pieces(player1, Board, P1C1, P1C2, P2C1, P2C2, PieceMovesPlayer1),
+    valid_moves_pieces(player2, Board, P1C1, P1C2, P2C1, P2C2, PieceMovesPlayer2),
+    length(PieceMovesPlayer1, LengthPlayer1),
+    length(PieceMovesPlayer2, LengthPlayer2),
+    PieceMovesDifference is LengthPlayer2 - LengthPlayer1.
+
+piece_moves_difference(Board, P1C1, P1C2, P2C1, P2C2, player2, PieceMovesDifference) :-
+    valid_moves_pieces(player1, Board, P1C1, P1C2, P2C1, P2C2, PieceMovesPlayer1),
+    valid_moves_pieces(player2, Board, P1C1, P1C2, P2C1, P2C2, PieceMovesPlayer2),
+    length(PieceMovesPlayer1, LengthPlayer1),
+    length(PieceMovesPlayer2, LengthPlayer2),
+    PieceMovesDifference is LengthPlayer1 - LengthPlayer2.
+
+value([_, Board, P1C1, P1C2, P2C1, P2C2 | _], player1, Value) :-
+    reachable_positions_difference(Board, P1C1, P1C2, P2C1, P2C2, player1, ReachablePositionsDifference),
+    piece_moves_difference(Board, P1C1, P1C2, P2C1, P2C2, player1, PieceMovesDifference),
+    Value is ReachablePositionsDifference + PieceMovesDifference.
+
+
+value([_, Board, P1C1, P1C2, P2C1, P2C2 | _], player2, Value) :-
+    reachable_positions_difference(Board, P1C1, P1C2, P2C1, P2C2, player2, ReachablePositionsDifference),
+    piece_moves_difference(Board, P1C1, P1C2, P2C1, P2C2, player2, PieceMovesDifference),
+    Value is ReachablePositionsDifference + PieceMovesDifference.
 
 valid_move_piece(Board, (OldCol, OldRow), (NewCol, NewRow), P1C1, P1C2, P2C1, P2C2) :-
     (NewCol, NewRow) \= P1C1,
