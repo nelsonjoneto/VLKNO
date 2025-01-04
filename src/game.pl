@@ -12,29 +12,37 @@ play :-
     handle_choice(Choice).
 
 % Start the game with the given player types and names.
-start_game(Player1Type, Player2Type, Player1Name, Player2Name) :-
+start_game(Player1Type, Player2Type, Player1Name, Player2Name, BoardSize, Difficulty1-Difficulty2) :-
     write('Starting game...'), nl,
     format('Player 1: ~w (~w), Player 2: ~w (~w)~n~n', [Player1Name, Player1Type, Player2Name, Player2Type]),
-    initial_state([Player1Type, Player2Type, Player1Name, Player2Name], GameState),
+    initial_state([Player1Type, Player2Type, Player1Name, Player2Name, BoardSize], GameState),
     display_game(GameState),
-    game_loop(GameState).
+    game_loop(Difficulty1-Difficulty2, GameState).
 
 % Handle the user's choice.
 handle_choice(1) :-
     write('You chose Human vs Human'), nl,
     choose_player_names(human, human, Player1Name, Player2Name),
-    start_game(human, human, Player1Name, Player2Name).
+    choose_board_size(BoardSize),
+    start_game(human, human, Player1Name, Player2Name, BoardSize, 0-0).
 handle_choice(2) :-
     write('You chose Human vs Computer'), nl,
     choose_player_names(human, computer, Player1Name, Player2Name),
-    start_game(human, computer, Player1Name, Player2Name).
+    choose_board_size(BoardSize),
+    choose_difficulty(pc2, Difficulty),
+    start_game(human, computer, Player1Name, Player2Name, BoardSize, 0-Difficulty).
 handle_choice(3) :-
     write('You chose Computer vs Human'), nl,
     choose_player_names(computer, human, Player1Name, Player2Name),
-    start_game(computer, human, Player1Name, Player2Name).
+    choose_board_size(BoardSize),
+    choose_difficulty(pc1, Difficulty),
+    start_game(computer, human, Player1Name, Player2Name, BoardSize, Difficulty-0).
 handle_choice(4) :-
     write('You chose Computer vs Computer'), nl,
-    start_game(computer, computer, 'PC1', 'PC2').
+    choose_board_size(BoardSize),
+    choose_difficulty(pc1, Difficulty1),
+    choose_difficulty(pc2, Difficulty2),
+    start_game(computer, computer, 'PC1', 'PC2', BoardSize, Difficulty1-Difficulty2).
 handle_choice(_) :-
     write('Invalid choice, please choose a valid option (1-4).'), nl,
     read(Choice),
@@ -51,6 +59,53 @@ choose_player_names(computer, human, Player1Name, Player2Name) :-
     Player1Name = 'PC1',
     write('Enter name for Player 2: '), read(Player2Name).
 
+% Choose the difficulty level for the computer player
+choose_difficulty(pc1, Difficulty) :-
+    display_difficulty_pc1,
+    repeat,
+    read(DifficultyChoice),
+    choose_difficulty_option(DifficultyChoice, Difficulty),
+    !.
+choose_difficulty(pc2, Difficulty) :-
+    display_difficulty_pc2,
+    repeat,
+    read(DifficultyChoice),
+    choose_difficulty_option(DifficultyChoice, Difficulty),
+    !.
+
+choose_difficulty_option(1, 1).
+choose_difficulty_option(2, 2).
+choose_difficulty_option(_, _) :-
+    write('Invalid choice, please choose a valid option (1-2).'), nl,
+    fail.
+
+% Choose the difficulty level for the computer player
+choose_board_size(BoardSize) :-
+    display_board_size,
+    repeat,
+    read(BoardSizeChoice),
+    choose_board_size_option(BoardSizeChoice, BoardSize),
+    !.
+
+choose_board_size_option(1,5).
+choose_board_size_option(2, BoardSize) :-
+    write('Enter the size of the board (NxN, between 4 and 7)'), 
+    repeat,
+    read(CustomSize),
+    valid_board_size(CustomSize, BoardSize),
+    !.
+choose_board_size_option(_, _) :-
+    write('Invalid choice, please choose a valid option (1-2).'), nl,
+    fail.
+
+valid_board_size(CustomSize, BoardSize) :-
+    integer(CustomSize),
+    CustomSize >= 4,
+    CustomSize =< 7,
+    BoardSize is CustomSize.
+valid_board_size(_, _) :-
+    write('Invalid board size, please choose a valid size (between 4 and 7).'), nl,
+    fail.
 
 %implementar diferentes nives de dificuldade para o computador
 
@@ -65,24 +120,26 @@ choose_player_names(computer, human, Player1Name, Player2Name) :-
     se forem ocupadas por stacks nao subiveis, calc
 
 */
-
-
+%back dou call do metodo de novo
 %ver quais os moves validos para cada peça para o jogador humano e so dar esses como opção
-%maybe criar um pause button 
-%implementar diferentes tamanhos
+%implementar diferentes tamanhos (done)
 %implementar IO gira (ver mansur)
+%maybe criar um pause button 
 
-game_loop(GameState) :-
+
+game_loop(_, GameState) :-
     game_over(GameState, Winner), !,
     write('Game over! Winner: '),
     write(Winner), nl.
 
 % Main game loop
-game_loop(GameState) :-
-    choose_move(GameState, 1, Move),
+game_loop(Difficulty1-Difficulty2, GameState) :-
+    choose_move(GameState, Difficulty1, Move),
     move(GameState, Move, NewGameState),
     display_game(NewGameState), !,
-    game_loop(NewGameState).
+    game_loop(Difficulty2-Difficulty1, NewGameState).
+
+% criar metodo level que recebe o nome do jogador e vê o nivel de dificuldade
 
 choose_move([player1, Board, P1C1, P1C2, P2C1, P2C2, computer | _], 1, Move) :-
     valid_moves([player1, Board, P1C1, P1C2, P2C1, P2C2 | _], ListOfMoves),

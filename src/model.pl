@@ -2,22 +2,23 @@
 :- use_module(library(lists)).
 
 % Example initial_state/2 predicate
-initial_state(GameConfig, GameState) :-
+initial_state([Player1Type, Player2Type, Player1Name, Player2Name, BoardSize], GameState) :-
     % Initialize the board and place pawns
-    initial_board(Board),
-    GameState = [player1, Board, (5,1), (1,5), (1,1), (5,5) | GameConfig].
+    initial_board(BoardSize, Board),
+    P1C1 = (BoardSize,1),
+    P1C2 = (1,BoardSize),
+    P2C2 = (BoardSize,BoardSize),
+    GameState = [player1, Board, P1C1, P1C2, (1,1), P2C2, Player1Type, Player2Type, Player1Name, Player2Name].
 
 print_game_state(GameState) :-
     format('GameState: ~w~n', [GameState]).
-% Example initial_board/1 predicate
-initial_board(Board) :-
-    Board = [
-        [1,1,1,1,1],
-        [1,1,1,1,1],
-        [1,1,1,1,1],
-        [1,1,1,1,1],
-        [1,1,1,1,1]
-    ].
+
+% Initialize the board with a given size
+initial_board(BoardSize, Board) :-
+    length(Row, BoardSize),
+    maplist(=(1), Row),
+    length(Board, BoardSize),
+    maplist(=(Row), Board).
 
 %valid_moves_pieces(player1, [[1,1,1,1,1],[1,1,1,1,1],[1,1,1,1,1],[1,1,1,1,1],[1,1,1,1,1]], (5,1), (1,5), (1,1), (5,5), ListOfMoves).
 %valid_moves_pieces(player1, [[1,1,1,1,1],[1,1,1,1,1],[1,1,1,1,1],[1,1,1,10,10],[1,1,1,10,1]], (5,1), (1,5), (1,1), (5,5), ListOfMoves).

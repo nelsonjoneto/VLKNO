@@ -122,3 +122,39 @@ display_menu :-
     write('====================================='), nl,
     write('|| Choose an option (1-4):         ||'), nl,
     write('====================================='), nl.
+
+% Display the board size menu
+display_board_size :-
+    nl,
+    write('====================================='), nl,
+    write('||        Choose Board Size        ||'), nl,
+    write('====================================='), nl,
+    write('|| 1. Classic Size (5x5)           ||'), nl,
+    write('|| 2. Custom Size                  ||'), nl,
+    write('====================================='), nl,
+    write('|| Choose an option (1-2):         ||'), nl,
+    write('====================================='), nl.
+
+% Display the difficulty menu for PC1
+display_difficulty_pc1 :-
+    nl,
+    write('====================================='), nl,
+    write('||    Choose Difficulty for PC1    ||'), nl,
+    write('====================================='), nl,
+    write('|| 1. Easy                         ||'), nl,
+    write('|| 2. Hard                         ||'), nl,
+    write('====================================='), nl,
+    write('|| Choose an option (1-2):         ||'), nl,
+    write('====================================='), nl.
+
+% Display the difficulty menu for PC2
+display_difficulty_pc2 :-
+    nl,
+    write('====================================='), nl,
+    write('||    Choose Difficulty for PC2    ||'), nl,
+    write('====================================='), nl,
+    write('|| 1. Easy                         ||'), nl,
+    write('|| 2. Hard                         ||'), nl,
+    write('====================================='), nl,
+    write('|| Choose an option (1-2):         ||'), nl,
+    write('====================================='), nl.
