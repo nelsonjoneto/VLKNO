@@ -2,14 +2,21 @@
 :- use_module(library(lists)).
 :- use_module(library(random)).
 :- use_module(library(between)).
-:- use_module(view).
-:- use_module(model).
-:- use_module(io).
+:- consult(view).
+:- consult(model).
+:- consult(io).
+:- consult(computer).
+:- consult(movement).
+:- consult(utils).
 
-% Main predicate to start the game
+/*
+play/0
+Description: The main predicate that gives access to the game menu, 
+allows configuring the game type, player names, difficulty levels, and the board size, and starts the game cycle.
+*/
 play :-
     display_menu,
-    game_configuration([Player1Type, Player1Type, Player1Name, Player2Name, BoardSize, Difficulty1-Difficulty2]),
+    game_configuration([Player1Type, Player2Type, Player1Name, Player2Name, BoardSize, Difficulty1-Difficulty2]),
     initial_state([Player1Type, Player2Type, Player1Name, Player2Name, BoardSize, Difficulty1-Difficulty2], GameState),
     write('Starting game...'), nl,
     format('Player 1: ~w (~w), Player 2: ~w (~w)~n~n', [Player1Name, Player1Type, Player2Name, Player2Type]),
@@ -17,328 +24,125 @@ play :-
     game_loop(Difficulty1-Difficulty2, GameState).
 
 /*
-    é interessante ver também a jogadas que resulta no maior número de movimentos possíveis futuros
-
-    dfs ou bfs para ver a rede conectada de cada jogador, atribuindo pontos
-    em caso de empate, vemos as casas à volta da rede, se forem vazias dao 2 pontos ao adversario
-    ou pode ser tipo percentagem da rede bloqueada por casas vazias
-    se forem ocupadas pelo adversario dao 1 ponto ao adversario,
-    se forem ocupadas por stacks nao subiveis, calc
-
+game_loop(+Difficulty, +GameState)
+Description: The main game loop that alternates turns between players, 
+checks for game over conditions, and handles moves for both human and computer players.
 */
-%back dou call do metodo de novo
-%ver quais os moves validos para cada peça para o jogador humano e so dar esses como opção
-%implementar diferentes tamanhos (done)
-%implementar IO gira (ver mansur)
-%maybe criar um pause button 
-
-
+% Game ends, print winner and ask for replay
 game_loop(_, GameState) :-
     game_over(GameState, Winner), !,
-    write('Game over! Winner: '),
-    write(Winner), nl.
+    print_winner_and_ask_replay(Winner).
 
-% Main game loop
+% Human player's turn
+game_loop(0-Difficulty2, GameState) :-
+    choose_move(GameState, 0, Move),
+    move(GameState, Move, NewGameState),
+    display_game(NewGameState), !,
+    game_loop(Difficulty2-0, NewGameState).
+% Computer player's turn (it tells the user the move it made and waits for the user to press any key to continue)
 game_loop(Difficulty1-Difficulty2, GameState) :-
     choose_move(GameState, Difficulty1, Move),
+    read_any_key(Move),
     move(GameState, Move, NewGameState),
     display_game(NewGameState), !,
     game_loop(Difficulty2-Difficulty1, NewGameState).
 
-% criar metodo level que recebe o nome do jogador e vê o nivel de dificuldade
+/*
+choose_move(+GameState, +Level, -Move)
+Description: For human players, choose_move/3 prompts the user to select a valid piece and specify the valid direction of movement. 
+It also requires input for the valid position of the stone to be moved and the valid target position where the stone should be placed.
+For the random computer player, a random valid move is selected. For the greedy computer player, it chooses a move with the highest value associated.
+*/
 
+%random computer (player1)
 choose_move([player1, Board, P1C1, P1C2, P2C1, P2C2, computer | _], 1, Move) :-
     valid_moves([player1, Board, P1C1, P1C2, P2C1, P2C2 | _], ListOfMoves),
     random_member(Move, ListOfMoves).
-choose_move([player1, Board, P1C1, P1C2, P2C1, P2C2, computer | Rest], 2, Move) :-
+
+%greedy computer (player1)
+choose_move([player1, Board, P1C1, P1C2, P2C1, P2C2, computer | _], 2, Move) :-
     valid_moves([player1, Board, P1C1, P1C2, P2C1, P2C2 | _], ListOfMoves),
     setof(Value-Mv, NewState^(
         member(Mv, ListOfMoves),
-        move([player1, Board, P1C1, P1C2, P2C1, P2C2, computer | Rest], Mv, NewState),
+        move([player1, Board, P1C1, P1C2, P2C1, P2C2, computer | _], Mv, NewState),
         value(NewState, player1, Value)
     ), [_V-Move | _]).
+
+%random computer (player1)
 choose_move([player2, Board, P1C1, P1C2, P2C1, P2C2, _, computer | _], 1, Move) :-
     valid_moves([player2, Board, P1C1, P1C2, P2C1, P2C2 | _], ListOfMoves),
     random_member(Move, ListOfMoves).
+
+%greedy computer (player2)
 choose_move([player2, Board, P1C1, P1C2, P2C1, P2C2, _, computer | _], 2, Move) :-
     valid_moves([player2, Board, P1C1, P1C2, P2C1, P2C2 | _], ListOfMoves),
     setof(Value-Mv, NewState^(
         member(Mv, ListOfMoves),
-        move([player2, Board, P1C1, P1C2, P2C1, P2C2, _, computer | Rest], Mv, NewState),
+        move([player2, Board, P1C1, P1C2, P2C1, P2C2, _, computer | _], Mv, NewState),
         value(NewState, player2, Value)
     ), [_V-Move | _]).
+
+%human (player1)
 choose_move([player1, Board, P1C1, P1C2, P2C1, P2C2, human | _], _, Move) :-
-    ask_piece_and_direction(player1, Board, P1C1, P1C2, P2C1, P2C2, (OldPiecePos, NewPiecePos)),
-    ask_stone_movement(Board, P1C1, P1C2, P2C1, P2C2, NewPiecePos, (OldStonePos, NewStonePos)),
-    Move = (OldPiecePos, NewPiecePos, OldStonePos, NewStonePos).
+    choose_piece_movement(player1, Board, P1C1, P1C2, P2C1, P2C2, (Piece, Direction)),
+    get_piece_position(Piece, P1C1, P1C2, P2C1, P2C2, OldPiecePos),
+    get_new_piece_positon(OldPiecePos, Direction, NewPiecePos),
+    choose_stone_movement(Board, P1C1, P1C2, P2C1, P2C2, NewPiecePos, (OldStonePos, NewStonePos)),
+    Move = (Piece, Direction, OldStonePos, NewStonePos).
+
+%human (player2)
 choose_move([player2, Board, P1C1, P1C2, P2C1, P2C2, _, human | _], _, Move) :-
-    ask_piece_and_direction(player2, Board, P1C1, P1C2, P2C1, P2C2, (OldPiecePos, NewPiecePos)),
-    ask_stone_movement(Board, P1C1, P1C2, P2C1, P2C2, NewPiecePos, (OldStonePos, NewStonePos)),
-    Move = (OldPiecePos, NewPiecePos, OldStonePos, NewStonePos).
-    
+    choose_piece_movement(player2, Board, P1C1, P1C2, P2C1, P2C2, (Piece, Direction)),
+    get_piece_position(Piece, P1C1, P1C2, P2C1, P2C2, OldPiecePos),
+    get_new_piece_positon(OldPiecePos, Direction, NewPiecePos),
+    choose_stone_movement(Board, P1C1, P1C2, P2C1, P2C2, NewPiecePos, (OldStonePos, NewStonePos)),
+    Move = (Piece, Direction, OldStonePos, NewStonePos).
 
-ask_stone_movement(Board, P1C1, P1C2, P2C1, P2C2, NewPiecePos, (OldStonePos, NewStonePos)) :-
-    find_min_height_stack(Board, NewPiecePos, P1C1, P1C2, P2C1, P2C2, MinHeightStack),
-    repeat,
-    write('Choose a stack to remove a stone from ("Column,Row")'),
-    read(OldStonePos),
-    ensure_valid_least_stone_position(Board, OldStonePos, MinHeightStack, NewPiecePos, P1C1, P1C2, P2C1, P2C2), !,
-    repeat,
-    write('Choose a stack to place a stone in ("Column,Row")'),
-    read(NewStonePos),
-    ensure_valid_unoccupied_position(Board, OldStonePos, NewPiecePos, NewStonePos, P1C1, P1C2, P2C1, P2C2),
-    !.
+/*
+move(+GameState, +Move, -NewGameState)
+Description: Executes a move, receiving the current game state and the move to be executed, 
+and returns the new game state after the move is executed. The board and the moved piece's position are updated.
+*/
 
-ask_piece_and_direction(player1, Board, P1C1, P1C2, P2C1, P2C2, (OldPiecePos, NewPiecePos)) :-
-    repeat,
-    write('Choose a piece to move ("w1", "w2"): '),
-    read(InputPiece),
-    validate_piece(player1, InputPiece, Piece), !,
-    repeat,
-    write('Choose the direction ("up", "down", "left", "right", "upleft", "upright", "downleft", "downright"): '),
-    read(InputDirection),
-    once(validate_direction(InputDirection, Direction)),
-    get_piece_position(player1, Piece, P1C1, P1C2, OldPiecePos),
-    ensure_valid_move(Board, OldPiecePos, Direction, P1C1, P1C2, P2C1, P2C2, NewPiecePos),
-    !.
-ask_piece_and_direction(player2, Board, P1C1, P1C2, P2C1, P2C2, (OldPiecePos, NewPiecePos)) :-
-    repeat,
-    write('Choose a piece to move ("b1", "b2"): '),
-    read(InputPiece),
-    validate_piece(player2, InputPiece, Piece), !,
-    repeat,
-    write('Choose the direction ("up", "down", "left", "right", "upleft", "upright", "downleft", "downright"): '),
-    read(InputDirection),
-    once(validate_direction(InputDirection, Direction)),
-    get_piece_position(player2, Piece, P2C1, P2C2, OldPiecePos),
-    ensure_valid_move(Board, OldPiecePos, Direction, P1C1, P1C2, P2C1, P2C2, NewPiecePos),
-    !.
-
-validate_piece(player1, w1, w1).
-validate_piece(player1, w2, w2).
-validate_piece(player2, b1, b1).
-validate_piece(player2, b2, b2).
-validate_piece(_, _, _) :-
-    write('Invalid piece, try again.'), nl,
-    fail.
-
-get_piece_position(player1, w1, P1C1, _, P1C1).
-get_piece_position(player1, w2, _, P1C2, P1C2).
-get_piece_position(player2, b1, P2C1, _, P2C1).
-get_piece_position(player2, b2, _, P2C2, P2C2).
-
-% Predicate to check if a direction is valid
-validate_direction(up, up).
-validate_direction(down, down).
-validate_direction(left, left).
-validate_direction(right, right).
-validate_direction('upleft', 'upleft').
-validate_direction('upright', 'upright').
-validate_direction('downleft', 'downleft').
-validate_direction('downright', 'downright').
-validate_direction(_,_) :-
-    write('Invalid direction, try again.'), nl,
-    fail.
-
-% Ensure the move is valid and calculate the new position
-ensure_valid_move(Board, (OldCol, OldRow), Direction, P1C1, P1C2, P2C1, P2C2, (NewCol, NewRow)) :-
-    direction_offset(Direction, (ColOffset, RowOffset)),
-    NewCol is OldCol + ColOffset,
-    NewRow is OldRow + RowOffset,
-    valid_move_piece(Board, (OldCol, OldRow), (NewCol, NewRow), P1C1, P1C2, P2C1, P2C2).
-ensure_valid_move(_, _, _, _, _, _, _, _) :-
-    write('Invalid piece move, try again.'), nl,
-    fail.
-
-ensure_valid_least_stone_position(Board, OldStonePos, MinHeightStack, NewPiecePos, P1C1, P1C2, P2C1, P2C2) :-
-    valid_least_stone_position(Board, OldStonePos, MinHeightStack, NewPiecePos, P1C1, P1C2, P2C1, P2C2).
-ensure_valid_least_stone_position(_, _, _, _, _, _, _, _) :-
-    write('Invalid stack, try again.'), nl,
-    write('You can only pick up a stone from one of the smallest unoccupied stacks on the board, except the one you just moved your piece from.'), nl,
-    fail.
-ensure_valid_unoccupied_position(Board, OldStonePos, NewPiecePos, NewStonePos, P1C1, P1C2, P2C1, P2C2) :-
-    valid_unoccupied_position(Board, OldStonePos, NewPiecePos, NewStonePos, P1C1, P1C2, P2C1, P2C2).
-ensure_valid_unoccupied_position(_, _, _, _, _, _, _, _) :-
-    write('Invalid stack, try again.'), nl,
-    write('You can only place a stone on an unoccupied stack of 1+ stones, except the one you just moved your piece from.'), nl,
-    fail.
-
-display_available_places_to_remove_stone(LeastStonePositions) :-
-    write('Available positions to remove a stone from: '), nl,
-    maplist(display_position, LeastStonePositions),
-    nl.
-
-display_position((Col, Row)) :-
-    format('(~w,~w) ', [Col, Row]).
-
-
-move([player1, Board, P1C1, P1C2, P2C1, P2C2 | Rest], (P1C1, NewPiecePos, OldStonePos, NewStonePos), NewGameState) :-
+%player1 moves piece w1
+move([player1, Board, P1C1, P1C2, P2C1, P2C2 | Rest], (w1, Direction, OldStonePos, NewStonePos), NewGameState) :-
     update_board(Board, OldStonePos, NewStonePos, NewBoard),
+    get_new_piece_positon(P1C1, Direction, NewPiecePos),
     NewGameState = [player2, NewBoard, NewPiecePos, P1C2, P2C1, P2C2 | Rest].
-move([player1, Board, P1C1, P1C2, P2C1, P2C2 | Rest], (P1C2, NewPiecePos, OldStonePos, NewStonePos), NewGameState) :-
+
+%player1 moves piece w2
+move([player1, Board, P1C1, P1C2, P2C1, P2C2 | Rest], (w2, Direction, OldStonePos, NewStonePos), NewGameState) :-
     update_board(Board, OldStonePos, NewStonePos, NewBoard),
+    get_new_piece_positon(P1C2, Direction, NewPiecePos),
     NewGameState = [player2, NewBoard, P1C1, NewPiecePos, P2C1, P2C2 | Rest].
-move([player2, Board, P1C1, P1C2, P2C1, P2C2 | Rest], (P2C1, NewPiecePos, OldStonePos, NewStonePos), NewGameState) :-
+
+%player2 moves piece b1
+move([player2, Board, P1C1, P1C2, P2C1, P2C2 | Rest], (b1, Direction, OldStonePos, NewStonePos), NewGameState) :-
     update_board(Board, OldStonePos, NewStonePos, NewBoard),
+    get_new_piece_positon(P2C1, Direction, NewPiecePos),
     NewGameState = [player1, NewBoard, P1C1, P1C2, NewPiecePos, P2C2 | Rest].
-move([player2, Board, P1C1, P1C2, P2C1, P2C2 | Rest], (P2C2, NewPiecePos, OldStonePos, NewStonePos), NewGameState) :-
+
+%player2 moves piece b2
+move([player2, Board, P1C1, P1C2, P2C1, P2C2 | Rest], (b2, Direction, OldStonePos, NewStonePos), NewGameState) :-
     update_board(Board, OldStonePos, NewStonePos, NewBoard),
+    get_new_piece_positon(P2C2, Direction, NewPiecePos),
     NewGameState = [player1, NewBoard, P1C1, P1C2, P2C1, NewPiecePos | Rest].
 
-
-
-% Move piece
-move_piece(GameState, (Piece, NewPos), NewGameState) :-
-    GameState = [PlayerTurn, Board, P1C1, P1C2, P2C1, P2C2, MaxStackSize, IsMoving, PrevPosition | Rest],
-    (PlayerTurn = player1 ->
-        (Piece = w1 -> NewGameState = [player1, Board, NewPos, P1C2, P2C1, P2C2, MaxStackSize, 0, P1C1 | Rest]
-        ; NewGameState = [player1, Board, P1C1, NewPos, P2C1, P2C2, MaxStackSize, 0, P1C2 | Rest])
-    ;
-        (Piece = b1 -> NewGameState = [player2, Board, P1C1, P1C2, NewPos, P2C2, MaxStackSize, 0, P2C1 | Rest]
-        ; NewGameState = [player2, Board, P1C1, P1C2, P2C1, NewPos, MaxStackSize, 0, P2C2 | Rest])
-    ).
-
-% Move stone
-move_stone(GameState, (FromPos, ToPos), NewGameState) :-
-    GameState = [PlayerTurn, Board, P1C1, P1C2, P2C1, P2C2, MaxStackSize, IsMoving, PrevPosition | Rest],
-    update_board(Board, FromPos, ToPos, NewBoard),
-    max_stack_size(NewBoard, NewMaxStackSize),
-    (PlayerTurn = player1 ->
-        NewPlayerTurn = player2
-    ;
-        NewPlayerTurn = player1
-    ),
-    NewGameState = [NewPlayerTurn, NewBoard, P1C1, P1C2, P2C1, P2C2, NewMaxStackSize, 1, (-1,-1) | Rest].
-
-% Update board
-update_board(Board, (OldCol, OldRow), (NewCol, NewRow), NewBoard) :-
-    length(Board, NumRows),
-    % Adjust coordinates to start from bottom left
-    AdjustedOldRow is NumRows - OldRow + 1,
-    AdjustedNewRow is NumRows - NewRow + 1,
-    nth1(AdjustedOldRow, Board, OldRowList),
-    nth1(OldCol, OldRowList, OldCell),
-    NewOldCell is OldCell - 1,
-    replace_nested(Board, AdjustedOldRow, OldCol, NewOldCell, TempBoard),
-    nth1(AdjustedNewRow, TempBoard, NewRowList),
-    nth1(NewCol, NewRowList, NewCell),
-    NewNewCell is NewCell + 1,
-    replace_nested(TempBoard, AdjustedNewRow, NewCol, NewNewCell, NewBoard).
-
-
-% Replace element in list
-replace([_|T], 1, X, [X|T]).
-replace([H|T], I, X, [H|R]) :-
-    I > 1,
-    I1 is I - 1,
-    replace(T, I1, X, R).
-
-% Replace element in nested list
-replace_nested([Row|RestRows], 1, Col, NewValue, [NewRow|RestRows]) :-
-    replace(Row, Col, NewValue, NewRow).
-replace_nested([Row|RestRows], RowIndex, Col, NewValue, [Row|NewRestRows]) :-
-    RowIndex > 1,
-    RowIndex1 is RowIndex - 1,
-    replace_nested(RestRows, RowIndex1, Col, NewValue, NewRestRows).
-
-% Valid move for stone
-valid_move_stone(Board, (FromCol, FromRow), (ToCol, ToRow), PrevPosition, P1C1, P1C2, P2C1, P2C2) :-
-    find_least_stone_positions(Board, PrevPosition, P1C1, P1C2, P2C1, P2C2, LeastStonePositions),
-    member((FromCol, FromRow), LeastStonePositions),
-    valid_unoccupied_position(Board, (ToCol, ToRow), PrevPosition, P1C1, P1C2, P2C1, P2C2).
-
-
-valid_least_stone_position(Board, (Col, Row), MinHeightStack, CurrentPosition, P1C1, P1C2, P2C1, P2C2) :-
-    length(Board, NumRows),
-    nth1(AdjustedRow, Board, RowList),
-    nth1(Col, RowList, MinHeightStack),
-    Row is NumRows - AdjustedRow + 1,
-    (Col, Row) \= CurrentPosition,
-    (Col, Row) \= P1C1,
-    (Col, Row) \= P1C2,
-    (Col, Row) \= P2C1,
-    (Col, Row) \= P2C2.
-
-find_min_height_stack(Board, CurrentPosition, P1C1, P1C2, P2C1, P2C2, MinHeightStack) :- 
-    length(Board, NumRows),
-    findall(Cell, (
-        nth1(AdjustedRow, Board, RowList),
-        nth1(Col, RowList, Cell),
-        Row is NumRows - AdjustedRow + 1,
-        (Col, Row) \= CurrentPosition,
-        (Col, Row) \= P1C1,
-        (Col, Row) \= P1C2,
-        (Col, Row) \= P2C1,
-        (Col, Row) \= P2C2,
-        Cell > 0
-    ), NonZeroStones),
-    min_list(NonZeroStones, MinHeightStack).
-
-% Find positions with the least number of stones
-find_least_stone_positions(Board, CurrentPosition, P1C1, P1C2, P2C1, P2C2, LeastStonePositions) :-
-    find_min_height_stack(Board, CurrentPosition, P1C1, P1C2, P2C1, P2C2, MinHeightStack),
-    length(Board, NumRows),
-    findall((Col, Row), (
-        nth1(AdjustedRow, Board, RowList),
-        nth1(Col, RowList, MinHeightStack),
-        Row is NumRows - AdjustedRow + 1,
-        (Col, Row) \= CurrentPosition,
-        (Col, Row) \= P1C1,
-        (Col, Row) \= P1C2,
-        (Col, Row) \= P2C1,
-        (Col, Row) \= P2C2
-    ), LeastStonePositions).
-
-
-% Find the minimum element in a list
-min_list([Min], Min).
-min_list([H|T], Min) :-
-    min_list(T, MinTail),
-    min(H, MinTail, Min).
-
-% Helper predicate to find the minimum of two numbers
-min(X, Y, X) :- X =< Y.
-min(X, Y, Y) :- X > Y.
-
-% Check if a position is unoccupied and not the previous position
-valid_unoccupied_position(Board, FromPos, CurrentPosition, (Col, Row), P1C1, P1C2, P2C1, P2C2) :-
-    length(Board, NumRows),
-    between(1, NumRows, AdjustedRow),
-    nth1(AdjustedRow, Board, RowList),
-    between(1, NumRows, Col),
-    Row is NumRows - AdjustedRow + 1,
-    nth1(Col, RowList, Cell),
-    Cell > 0,
-    (Col, Row) \= CurrentPosition,
-    (Col, Row) \= P1C1,
-    (Col, Row) \= P1C2,
-    (Col, Row) \= P2C1,
-    (Col, Row) \= P2C2,
-    FromPos \= (Col, Row).
-
-
-find_unoccupied_positions(Board, FromPos, CurrentPosition, P1C1, P1C2, P2C1, P2C2, UnoccupiedPositions) :-
-    length(Board, NumRows),
-    findall((Col, Row), (
-        between(1, NumRows, AdjustedRow),
-        nth1(AdjustedRow, Board, RowList),
-        between(1, NumRows, Col),
-        Row is NumRows - AdjustedRow + 1,
-        nth1(Col, RowList, Cell),
-        Cell > 0,
-        (Col, Row) \= CurrentPosition,
-        (Col, Row) \= P1C1,
-        (Col, Row) \= P1C2,
-        (Col, Row) \= P2C1,
-        (Col, Row) \= P2C2,
-        FromPos \= (Col, Row)
-    ), UnoccupiedPositions).
-
+/*
+valid_moves(+GameState, -ListOfMoves)
+Description: Receives the current game state and returns a list of all possible valid moves.
+It starts by finding all the valid moves for the current player's pieces. 
+Each piece move results in a different set of valid stone moves, that are obtained by calculating all the positions 
+in the board with the shortest stack of 1+ stones (positions to remove a stone from) and by then calculating all the 
+unnocupied positions to place the removed stone.
+*/
 valid_moves([PlayerTurn, Board, P1C1, P1C2, P2C1, P2C2 | _], ListOfMoves) :-
     valid_moves_pieces(PlayerTurn, Board, P1C1, P1C2, P2C1, P2C2, PieceMoves),
-    findall(((PieceMovePrevPosition, PieceMoveCurrentPosition, StoneMovePrevPosition, StoneMoveCurrentPosition)),
+    findall(((Piece, Direction, StoneMovePrevPosition, StoneMoveCurrentPosition)),
             (
-                member((PieceMovePrevPosition, PieceMoveCurrentPosition), PieceMoves),
+                member((Piece, Direction), PieceMoves),
+                get_piece_position(Piece, P1C1, P1C2, P2C1, P2C2, PieceMovePrevPosition),
+                get_new_piece_positon(PieceMovePrevPosition, Direction, PieceMoveCurrentPosition),
                 find_least_stone_positions(Board, PieceMoveCurrentPosition, P1C1, P1C2, P2C1, P2C2, LeastStonePositions),
                 member(StoneMovePrevPosition, LeastStonePositions),
                 find_unoccupied_positions(Board, StoneMovePrevPosition, PieceMoveCurrentPosition, P1C1, P1C2, P2C1, P2C2, UnoccupiedPositions),
@@ -347,141 +151,41 @@ valid_moves([PlayerTurn, Board, P1C1, P1C2, P2C1, P2C2 | _], ListOfMoves) :-
             ),
             ListOfMoves).
 
-% Depth-first search to find all reachable positions from an initial position
-dfs(Board, StartPos, P1C1, P1C2, P2C1, P2C2, Visited) :-
-    dfs(Board, [StartPos], [], Visited, P1C1, P1C2, P2C1, P2C2).
+/*
+value(+GameState, +Player, -Value)
+Description: Receives the current game state and returns a value measuring how good or bad the current game state is for the given Player. 
+The method uses depth-first search (DFS) to determine the number of reachable positions for each piece, 
+aiming to maximize the difference between the number of reachable positions for the current player and their opponent 
+(each reachable position is worth 1 point). 
+It also attempts to maximize the difference in the number of valid piece moves between the two players 
+(each valid piece move is worth 1 point).
+The objective is to try to trap the other player's pieces, while keeping the player's own pieces free to move.
+*/
 
-% Base case: when the stack is empty, return the visited nodes
-dfs(_, [], Visited, Visited, _, _, _, _).
-
-% Recursive case: explore neighbors
-dfs(Board, [(OldCol, OldRow)|Rest], Visited, FinalVisited, P1C1, P1C2, P2C1, P2C2) :-
-    \+ member((OldCol, OldRow), Visited),
-    findall((NewCol, NewRow),
-        (
-            direction_offset(Direction, (ColOffset, RowOffset)),
-            NewCol is OldCol + ColOffset,
-            NewRow is OldRow + RowOffset,
-            valid_move_piece(Board, (OldCol, OldRow), (NewCol, NewRow), P1C1, P1C2, P2C1, P2C2),
-            \+ member((NewCol, NewRow), Visited)
-        ),
-        NeighborsPositions),
-    append(NeighborsPositions, Rest, NewStack),
-    dfs(Board, NewStack, [(OldCol, OldRow)|Visited], FinalVisited, P1C1, P1C2, P2C1, P2C2), !.
-
-% If the position is already visited, just proceed with the rest of the stack
-dfs(Board, [(_, _)|Rest], Visited, FinalVisited, P1C1, P1C2, P2C1, P2C2) :-
-    dfs(Board, Rest, Visited, FinalVisited, P1C1, P1C2, P2C1, P2C2).
-
-reachable_positions_difference(Board, P1C1, P1C2, P2C1, P2C2, player1, ReachablePositionsDifference) :-
-    dfs(Board, P1C1, P1C1, P1C2, P2C1, P2C2, ReachablePositionsFromP1C1),
-    dfs(Board, P1C2, P1C1, P1C2, P2C1, P2C2, ReachablePositionsFromP1C2),
-    dfs(Board, P2C1, P1C1, P1C2, P2C1, P2C2, ReachablePositionsFromP2C1),
-    dfs(Board, P2C2, P1C1, P1C2, P2C1, P2C2, ReachablePositionsFromP2C2),
-    length(ReachablePositionsFromP1C1, LengthP1C1),
-    length(ReachablePositionsFromP1C2, LengthP1C2),
-    length(ReachablePositionsFromP2C1, LengthP2C1),
-    length(ReachablePositionsFromP2C2, LengthP2C2),
-    ReachablePositionsDifference is (LengthP2C1 + LengthP2C2) - (LengthP1C1 + LengthP1C2).
-
-reachable_positions_difference(Board, P1C1, P1C2, P2C1, P2C2, player2, ReachablePositionsDifference) :-
-    dfs(Board, P1C1, P1C1, P1C2, P2C1, P2C2, ReachablePositionsFromP1C1),
-    dfs(Board, P1C2, P1C1, P1C2, P2C1, P2C2, ReachablePositionsFromP1C2),
-    dfs(Board, P2C1, P1C1, P1C2, P2C1, P2C2, ReachablePositionsFromP2C1),
-    dfs(Board, P2C2, P1C1, P1C2, P2C1, P2C2, ReachablePositionsFromP2C2),
-    length(ReachablePositionsFromP1C1, LengthP1C1),
-    length(ReachablePositionsFromP1C2, LengthP1C2),
-    length(ReachablePositionsFromP2C1, LengthP2C1),
-    length(ReachablePositionsFromP2C2, LengthP2C2),
-    ReachablePositionsDifference is (LengthP1C1 + LengthP1C2) - (LengthP2C1 + LengthP2C2).
-
-piece_moves_difference(Board, P1C1, P1C2, P2C1, P2C2, player1, PieceMovesDifference) :-
-    valid_moves_pieces(player1, Board, P1C1, P1C2, P2C1, P2C2, PieceMovesPlayer1),
-    valid_moves_pieces(player2, Board, P1C1, P1C2, P2C1, P2C2, PieceMovesPlayer2),
-    length(PieceMovesPlayer1, LengthPlayer1),
-    length(PieceMovesPlayer2, LengthPlayer2),
-    PieceMovesDifference is LengthPlayer2 - LengthPlayer1.
-
-piece_moves_difference(Board, P1C1, P1C2, P2C1, P2C2, player2, PieceMovesDifference) :-
-    valid_moves_pieces(player1, Board, P1C1, P1C2, P2C1, P2C2, PieceMovesPlayer1),
-    valid_moves_pieces(player2, Board, P1C1, P1C2, P2C1, P2C2, PieceMovesPlayer2),
-    length(PieceMovesPlayer1, LengthPlayer1),
-    length(PieceMovesPlayer2, LengthPlayer2),
-    PieceMovesDifference is LengthPlayer1 - LengthPlayer2.
-
+%value for player1
 value([_, Board, P1C1, P1C2, P2C1, P2C2 | _], player1, Value) :-
     reachable_positions_difference(Board, P1C1, P1C2, P2C1, P2C2, player1, ReachablePositionsDifference),
     piece_moves_difference(Board, P1C1, P1C2, P2C1, P2C2, player1, PieceMovesDifference),
     Value is ReachablePositionsDifference + PieceMovesDifference.
 
-
+%value for player2
 value([_, Board, P1C1, P1C2, P2C1, P2C2 | _], player2, Value) :-
     reachable_positions_difference(Board, P1C1, P1C2, P2C1, P2C2, player2, ReachablePositionsDifference),
     piece_moves_difference(Board, P1C1, P1C2, P2C1, P2C2, player2, PieceMovesDifference),
     Value is ReachablePositionsDifference + PieceMovesDifference.
 
-valid_move_piece(Board, (OldCol, OldRow), (NewCol, NewRow), P1C1, P1C2, P2C1, P2C2) :-
-    (NewCol, NewRow) \= P1C1,
-    (NewCol, NewRow) \= P1C2,
-    (NewCol, NewRow) \= P2C1,
-    (NewCol, NewRow) \= P2C2,
-    length(Board, NumRows),
-    between(1, NumRows, NewCol),
-    between(1, NumRows, NewRow),
-    AdjustedOldRow is NumRows - OldRow + 1,
-    AdjustedNewRow is NumRows - NewRow + 1,
-    nth1(AdjustedOldRow, Board, OldRowList),
-    nth1(OldCol, OldRowList, OldCell),
-    nth1(AdjustedNewRow, Board, NewRowList),
-    nth1(NewCol, NewRowList, NewCell),
-    abs(NewCell - OldCell) =< 1,
-    NewCell > 0.
+/*
+game_over(+GameState, -Winner)
+Description: Receives the current game state and verifies whether the game is over, 
+in which case it also identifies the winner.
+The game ends when a player has no more valid moves to execute.
+*/
 
-valid_moves_pieces(player1, Board, P1C1, P1C2, P2C1, P2C2, ListOfMoves) :-
-    Pieces = [P1C1, P1C2],
-    length(Board, NumRows),
-    findall(((OldCol, OldRow), (NewCol, NewRow)),
-          (   
-            member((OldCol, OldRow), Pieces),
-            direction_offset(Direction, (ColOffset, RowOffset)),
-            NewCol is OldCol + ColOffset,
-            NewRow is OldRow + RowOffset,
-            valid_move_piece(Board, (OldCol, OldRow), (NewCol, NewRow), P1C1, P1C2, P2C1, P2C2)
-          ),
-          ListOfMoves).
-valid_moves_pieces(player2, Board, P1C1, P1C2, P2C1, P2C2, ListOfMoves) :-
-    Pieces = [P2C1, P2C2],
-    length(Board, NumRows),
-    findall(((OldCol, OldRow), (NewCol, NewRow)),
-          (   
-            member((OldCol, OldRow), Pieces),
-            direction_offset(Direction, (ColOffset, RowOffset)),
-            NewCol is OldCol + ColOffset,
-            NewRow is OldRow + RowOffset,
-            valid_move_piece(Board, (OldCol, OldRow), (NewCol, NewRow), P1C1, P1C2, P2C1, P2C2)
-          ),
-          ListOfMoves).
-
-% Check if the game is over and identify the winner
+%checks if there are no moves available for player1
 game_over(GameState, Winner) :-
-    valid_moves(GameState, ListOfMoves),
-    (ListOfMoves = [] ->
-        GameState = [PlayerTurn | _],
-        (PlayerTurn = player1 ->
-            Winner = player2
-        ;
-            Winner = player1
-        )
-    ;
-        fail
-    ).
-
-% Direction offsets
-direction_offset('up', (0, 1)).
-direction_offset('down', (0, -1)).
-direction_offset('left', (-1, 0)).
-direction_offset('right', (1, 0)).
-direction_offset('upleft', (-1, 1)).
-direction_offset('upright', (1, 1)).
-direction_offset('downleft', (-1, -1)).
-direction_offset('downright', (1, -1)).
+    GameState = [player1, _, _, _, _, _, _, _, _, Winner],
+    valid_moves(GameState, []).
+    %checks if there are no moves available for player1
+game_over(GameState, Winner) :-
+    GameState = [player1, _, _, _, _, _, _, _, Winner | _],
+    valid_moves(GameState, []).
