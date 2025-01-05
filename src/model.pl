@@ -2,7 +2,7 @@
 :- use_module(library(lists)).
 
 % Example initial_state/2 predicate
-initial_state([Player1Type, Player2Type, Player1Name, Player2Name, BoardSize], GameState) :-
+initial_state([Player1Type, Player2Type, Player1Name, Player2Name, BoardSize | _], GameState) :-
     % Initialize the board and place pawns
     initial_board(BoardSize, Board),
     P1C1 = (BoardSize,1),

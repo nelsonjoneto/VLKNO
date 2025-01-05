@@ -119,8 +119,9 @@ display_menu :-
     write('|| 2. Human vs Computer            ||'), nl,
     write('|| 3. Computer vs Human            ||'), nl,
     write('|| 4. Computer vs Computer         ||'), nl,
+    write('|| 5. Exit                         ||'), nl,
     write('====================================='), nl,
-    write('|| Choose an option (1-4):         ||'), nl,
+    write('|| Choose an option (1-5):         ||'), nl,
     write('====================================='), nl.
 
 % Display the board size menu

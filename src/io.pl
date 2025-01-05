@@ -2,6 +2,74 @@
 
 :- use_module(library(between)).
 :- use_module(library(lists)).
+:- use_module(io).
+
+game_configuration([Player1Type, Player1Type, Player1Name, Player2Name, BoardSize, Difficulty1-Difficulty2]) :-
+    choose_gamemode(Player1Type, Player2Type),
+    choose_player_names(Player1Type, Player2Type, Player1Name, Player2Name),
+    choose_difficulty(player1, Player1Type, Difficulty1),
+    choose_difficulty(player2, Player2Type, Difficulty2),
+    choose_board_size(BoardSize).
+
+choose_gamemode(Player1Type, Player2Type) :-
+    read_menu_option(1, 5, Choice),
+    handle_gamemode_choice(Choice, Player1Type, Player2Type).
+
+handle_gamemode_choice(1, human, human) :-
+    write('You chose Human vs Human'), nl.
+handle_gamemode_choice(2, human, computer) :-
+    write('You chose Human vs Computer'), nl.
+handle_gamemode_choice(3, computer, human) :-
+    write('You chose Computer vs Human'), nl.
+handle_gamemode_choice(4, computer, computer) :-
+    write('You chose Computer vs Computer'), nl.
+handle_gamemode_choice(5, _, _) :-
+    write('Exiting the game. Goodbye!').
+
+choose_player_names(human, human, Player1Name, Player2Name) :-
+    write('Enter name for Player 1 (letters and numbers only, max 20 characters).'), nl,
+    read_playername(Player1Name),
+    write('Enter name for Player 2 (letters and numbers only, max 20 characters).'), nl,
+    read_playername(Player2Name).
+choose_player_names(human, computer, Player1Name, 'PC2') :-
+    write('Enter name for Player 1 (letters and numbers only, max 20 characters).'), nl,
+    read_playername(Player1Name).
+choose_player_names(computer, human, 'PC1', Player2Name) :-
+    write('Enter name for Player 2 (letters and numbers only, max 20 characters).'), nl,
+    read_playername(Player2Name).
+choose_player_names(computer, computer, 'PC1', 'PC2').
+
+choose_difficulty(_, human, 0).
+choose_difficulty(player1, computer, Difficulty1) :-
+    display_difficulty_pc1,
+    read_menu_option(1, 2, Difficulty1).
+choose_difficulty(player2, computer, Difficulty2) :-
+    display_difficulty_pc2,
+    read_menu_option(1, 2, Difficulty2).
+
+choose_board_size(BoardSize) :-
+    display_board_size,
+    read_menu_option(1,2, Choice),
+    handle_board_size_choice(Choice, BoardSize).
+
+handle_board_size_choice(1, 5).
+handle_board_size_choice(2, BoardSize) :-
+    write('Enter the size of the board (NxN, between 4 and 7): '),
+    read_menu_option(4,7, BoardSize).
+
+choose_piece_movement(player1, Board, P1C1, P1C2, P2C1, P2C2, (OldPiecePos, NewPiecePos)) :-
+    write('Choose a piece to move (w1, w2): '), nl,
+    read_player_piece([w1, w2], Piece),
+    write('Choose the direction (up, down, left, right, upleft, upright, downleft, downright) or "back" to choose another piece: '), nl,
+    read_direction(Direction),
+    get_piece_position(player1, Piece, P1C1, P1C2, OldPiecePos),
+    ensure_valid_move(Board, OldPiecePos, Direction, P1C1, P1C2, P2C1, P2C2, NewPiecePos),
+    !.
+
+get_piece_position(player1, w1, P1C1, _, P1C1).
+get_piece_position(player1, w2, _, P1C2, P1C2).
+get_piece_position(player2, b1, P2C1, _, P2C1).
+get_piece_position(player2, b2, _, P2C2, P2C2).
 
 clear_buffer :-
     repeat,
@@ -80,17 +148,16 @@ read_player_piece(Pieces, Piece) :-
     clear_buffer,
     read_player_piece(Pieces, Piece).
 
-read_direction(Directions, Direction) :-
+read_direction(Direction) :-
     read_string_aux([], DirectionList),
     atom_chars(Direction, DirectionList),
-    member(Direction, Directions),
+    member(Direction, [up, down, left, right, upleft, upright, downleft, downright, back]),
     !.
 
-read_direction(Directions, Direction) :-
-    write('Invalid Direction. Please try again. Valid directions: '),
-    write(Directions), nl,
+read_direction(Direction) :-
+    write('Invalid Direction. Please try again. Valid directions: up, down, left, right, upleft, upright, downleft, downright, or "back" to choose another piece.'), nl,
     clear_buffer,
-    read_player_piece(Directions, Direction).
+    read_player_piece(Direction).
 
 read_playername(Name) :-
     read_string_aux([], NameList),

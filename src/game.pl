@@ -4,114 +4,20 @@
 :- use_module(library(between)).
 :- use_module(view).
 :- use_module(model).
+:- use_module(io).
 
 % Main predicate to start the game
 play :-
     display_menu,
-    read(Choice),
-    handle_choice(Choice).
-
-% Start the game with the given player types and names.
-start_game(Player1Type, Player2Type, Player1Name, Player2Name, BoardSize, Difficulty1-Difficulty2) :-
+    game_configuration([Player1Type, Player1Type, Player1Name, Player2Name, BoardSize, Difficulty1-Difficulty2]),
+    initial_state([Player1Type, Player2Type, Player1Name, Player2Name, BoardSize, Difficulty1-Difficulty2], GameState),
     write('Starting game...'), nl,
     format('Player 1: ~w (~w), Player 2: ~w (~w)~n~n', [Player1Name, Player1Type, Player2Name, Player2Type]),
-    initial_state([Player1Type, Player2Type, Player1Name, Player2Name, BoardSize], GameState),
     display_game(GameState),
     game_loop(Difficulty1-Difficulty2, GameState).
 
-% Handle the user's choice.
-handle_choice(1) :-
-    write('You chose Human vs Human'), nl,
-    choose_player_names(human, human, Player1Name, Player2Name),
-    choose_board_size(BoardSize),
-    start_game(human, human, Player1Name, Player2Name, BoardSize, 0-0).
-handle_choice(2) :-
-    write('You chose Human vs Computer'), nl,
-    choose_player_names(human, computer, Player1Name, Player2Name),
-    choose_board_size(BoardSize),
-    choose_difficulty(pc2, Difficulty),
-    start_game(human, computer, Player1Name, Player2Name, BoardSize, 0-Difficulty).
-handle_choice(3) :-
-    write('You chose Computer vs Human'), nl,
-    choose_player_names(computer, human, Player1Name, Player2Name),
-    choose_board_size(BoardSize),
-    choose_difficulty(pc1, Difficulty),
-    start_game(computer, human, Player1Name, Player2Name, BoardSize, Difficulty-0).
-handle_choice(4) :-
-    write('You chose Computer vs Computer'), nl,
-    choose_board_size(BoardSize),
-    choose_difficulty(pc1, Difficulty1),
-    choose_difficulty(pc2, Difficulty2),
-    start_game(computer, computer, 'PC1', 'PC2', BoardSize, Difficulty1-Difficulty2).
-handle_choice(_) :-
-    write('Invalid choice, please choose a valid option (1-4).'), nl,
-    read(Choice),
-    handle_choice(Choice).
-
-% Choose player names
-choose_player_names(human, human, Player1Name, Player2Name) :-
-    write('Enter name for Player 1: '), read(Player1Name),
-    write('Enter name for Player 2: '), read(Player2Name).
-choose_player_names(human, computer, Player1Name, Player2Name) :-
-    write('Enter name for Player 1: '), read(Player1Name),
-    Player2Name = 'PC2'.
-choose_player_names(computer, human, Player1Name, Player2Name) :-
-    Player1Name = 'PC1',
-    write('Enter name for Player 2: '), read(Player2Name).
-
-% Choose the difficulty level for the computer player
-choose_difficulty(pc1, Difficulty) :-
-    display_difficulty_pc1,
-    repeat,
-    read(DifficultyChoice),
-    choose_difficulty_option(DifficultyChoice, Difficulty),
-    !.
-choose_difficulty(pc2, Difficulty) :-
-    display_difficulty_pc2,
-    repeat,
-    read(DifficultyChoice),
-    choose_difficulty_option(DifficultyChoice, Difficulty),
-    !.
-
-choose_difficulty_option(1, 1).
-choose_difficulty_option(2, 2).
-choose_difficulty_option(_, _) :-
-    write('Invalid choice, please choose a valid option (1-2).'), nl,
-    fail.
-
-% Choose the difficulty level for the computer player
-choose_board_size(BoardSize) :-
-    display_board_size,
-    repeat,
-    read(BoardSizeChoice),
-    choose_board_size_option(BoardSizeChoice, BoardSize),
-    !.
-
-choose_board_size_option(1,5).
-choose_board_size_option(2, BoardSize) :-
-    write('Enter the size of the board (NxN, between 4 and 7)'), 
-    repeat,
-    read(CustomSize),
-    valid_board_size(CustomSize, BoardSize),
-    !.
-choose_board_size_option(_, _) :-
-    write('Invalid choice, please choose a valid option (1-2).'), nl,
-    fail.
-
-valid_board_size(CustomSize, BoardSize) :-
-    integer(CustomSize),
-    CustomSize >= 4,
-    CustomSize =< 7,
-    BoardSize is CustomSize.
-valid_board_size(_, _) :-
-    write('Invalid board size, please choose a valid size (between 4 and 7).'), nl,
-    fail.
-
-%implementar diferentes nives de dificuldade para o computador
-
 /*
     é interessante ver também a jogadas que resulta no maior número de movimentos possíveis futuros
-
 
     dfs ou bfs para ver a rede conectada de cada jogador, atribuindo pontos
     em caso de empate, vemos as casas à volta da rede, se forem vazias dao 2 pontos ao adversario
