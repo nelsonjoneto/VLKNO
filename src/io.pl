@@ -77,12 +77,12 @@ choose_board_size(BoardSize) :-
 
 /*
 handle_board_size_choice(+Choice, -BoardSize)
-Description: Sets the board size between 4 and 7, based on the user's choice.
+Description: Sets the board size between 4 and 10, based on the user's choice.
 */
 handle_board_size_choice(1, 5).
 handle_board_size_choice(2, BoardSize) :-
-    write('Enter the size of the board (NxN, between 4 and 7): '),
-    read_menu_option(4,7, BoardSize).
+    write('Enter the size of the board (NxN, between 4 and 8): '),
+    read_menu_option(4,8, BoardSize).
 
 /*
 choose_piece_movement(+Player, +Board, +P1C1, +P1C2, +P2C1, +P2C2, -Move)

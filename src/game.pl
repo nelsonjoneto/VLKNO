@@ -1,4 +1,3 @@
-% Load the predicates from view.pl and model.pl
 :- use_module(library(lists)).
 :- use_module(library(random)).
 :- use_module(library(between)).
@@ -52,6 +51,9 @@ choose_move(+GameState, +Level, -Move)
 Description: For human players, choose_move/3 prompts the user to select a valid piece and specify the valid direction of movement. 
 It also requires input for the valid position of the stone to be moved and the valid target position where the stone should be placed.
 For the random computer player, a random valid move is selected. For the greedy computer player, it chooses a move with the highest value associated.
+An optimization was implemented for larger boards, where the greedy computer player only considers initially the value of the available piece moves,
+and then only considers the value of the possible moves generated from the highest value piece moves. 
+It greatly reduces the number of possible moves to consider in most cases.
 */
 
 %random computer (player1)
@@ -59,26 +61,80 @@ choose_move([player1, Board, P1C1, P1C2, P2C1, P2C2, computer | _], 1, Move) :-
     valid_moves([player1, Board, P1C1, P1C2, P2C1, P2C2 | _], ListOfMoves),
     random_member(Move, ListOfMoves).
 
-%greedy computer (player1)
+%greedy computer (player1) without optimization for larger boards
 choose_move([player1, Board, P1C1, P1C2, P2C1, P2C2, computer | _], 2, Move) :-
+    length(Board, BoardSize),
+    BoardSize < 6,
     valid_moves([player1, Board, P1C1, P1C2, P2C1, P2C2 | _], ListOfMoves),
     setof(Value-Mv, NewState^(
         member(Mv, ListOfMoves),
         move([player1, Board, P1C1, P1C2, P2C1, P2C2, computer | _], Mv, NewState),
         value(NewState, player1, Value)
     ), [_V-Move | _]).
+%greedy computer (player1) with optimization for larger boards
+choose_move([player1, Board, P1C1, P1C2, P2C1, P2C2, computer | _], 2, Move) :-
+    % Get all valid piece moves and their values
+    valid_moves_pieces(player1, Board, P1C1, P1C2, P2C1, P2C2, ListOfMoves),
+    setof(Value-Mv, NewState^(
+        member(Mv, ListOfMoves),
+        move_piece([player1, Board, P1C1, P1C2, P2C1, P2C2 | _], Mv, NewState),
+        value(NewState, player1, Value)
+    ), ValueMoves),
+    % Get the highest value
+    ValueMoves = [HighestValue-_|_],
+    % Filter moves with the highest value
+    include(=(HighestValue-_), ValueMoves, HighestValueMoves),
+    % Get all valid stone moves for the highest value piece moves
+    findall((Piece, Direction, OldStonePos, NewStonePos), (
+        member(_-Mv, HighestValueMoves),
+        Mv = (Piece, Direction),
+        valid_moves_stones(Board, P1C1, P1C2, P2C1, P2C2, (Piece, Direction), StoneMoves),
+        member((OldStonePos, NewStonePos), StoneMoves)
+    ), AllMoves),
+    setof(Value-Mv, NewState^(
+        member(Mv, AllMoves),
+        move([player1, Board, P1C1, P1C2, P2C1, P2C2 | _], Mv, NewState),
+        value(NewState, player1, Value)
+    ), [_V-Move | _]).
 
-%random computer (player1)
+%random computer (player2)
 choose_move([player2, Board, P1C1, P1C2, P2C1, P2C2, _, computer | _], 1, Move) :-
     valid_moves([player2, Board, P1C1, P1C2, P2C1, P2C2 | _], ListOfMoves),
     random_member(Move, ListOfMoves).
 
-%greedy computer (player2)
+%greedy computer (player2) without optimization for larger boards
 choose_move([player2, Board, P1C1, P1C2, P2C1, P2C2, _, computer | _], 2, Move) :-
+    length(Board, BoardSize),
+    BoardSize < 6,
     valid_moves([player2, Board, P1C1, P1C2, P2C1, P2C2 | _], ListOfMoves),
     setof(Value-Mv, NewState^(
         member(Mv, ListOfMoves),
         move([player2, Board, P1C1, P1C2, P2C1, P2C2, _, computer | _], Mv, NewState),
+        value(NewState, player2, Value)
+    ), [_V-Move | _]).
+%greedy computer (player2) with optimization for larger boards
+choose_move([player2, Board, P1C1, P1C2, P2C1, P2C2, _, computer | _], 2, Move) :-
+    % Get all valid piece moves and their values
+    valid_moves_pieces(player2, Board, P1C1, P1C2, P2C1, P2C2, ListOfMoves),
+    setof(Value-Mv, NewState^(
+        member(Mv, ListOfMoves),
+        move_piece([player2, Board, P1C1, P1C2, P2C1, P2C2 | _], Mv, NewState),
+        value(NewState, player2, Value)
+    ), ValueMoves),
+    % Get the highest value
+    ValueMoves = [HighestValue-_|_],
+    % Filter moves with the highest value
+    include(=(HighestValue-_), ValueMoves, HighestValueMoves),
+    % Get all valid stone moves for the highest value piece moves
+    findall((Piece, Direction, OldStonePos, NewStonePos), (
+        member(_-Mv, HighestValueMoves),
+        Mv = (Piece, Direction),
+        valid_moves_stones(Board, P1C1, P1C2, P2C1, P2C2, (Piece, Direction), StoneMoves),
+        member((OldStonePos, NewStonePos), StoneMoves)
+    ), AllMoves),
+    setof(Value-Mv, NewState^(
+        member(Mv, AllMoves),
+        move([player2, Board, P1C1, P1C2, P2C1, P2C2 | _], Mv, NewState),
         value(NewState, player2, Value)
     ), [_V-Move | _]).
 
@@ -187,5 +243,5 @@ game_over(GameState, Winner) :-
     valid_moves(GameState, []).
     %checks if there are no moves available for player1
 game_over(GameState, Winner) :-
-    GameState = [player1, _, _, _, _, _, _, _, Winner | _],
+    GameState = [player2, _, _, _, _, _, _, _, Winner | _],
     valid_moves(GameState, []).

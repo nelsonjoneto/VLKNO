@@ -28,10 +28,47 @@ valid_moves_pieces(player2, Board, P1C1, P1C2, P2C1, P2C2, ListOfMoves) :-
             valid_move_piece(Board, OldPos, NewPos, P1C1, P1C2, P2C1, P2C2)
           ),
         ListOfMoves).
+/*
+move_piece(+GameState, +Piece, +Direction, -NewGameState)
+Description: Moves the specified piece in the given direction and updates the game state.
+*/
+
+%move piece w1
+move_piece([player1, Board, P1C1, P1C2, P2C1, P2C2 | _], (w1, Direction), NewGameState) :-
+    get_new_piece_positon(P1C1, Direction, NewPos),
+    NewGameState = [player1, Board, NewPos, P1C2, P2C1, P2C2 | _].
+%move piece w2
+move_piece([player1, Board, P1C1, P1C2, P2C1, P2C2 | _], (w2, Direction), NewGameState) :-
+    get_new_piece_positon(P1C2, Direction, NewPos),
+    NewGameState = [player1, Board, P1C1, NewPos, P2C1, P2C2 | _].
+%move piece b1
+move_piece([player2, Board, P1C1, P1C2, P2C1, P2C2 | _], (b1, Direction), NewGameState) :-
+    get_new_piece_positon(P2C1, Direction, NewPos),
+    NewGameState = [player2, Board, P1C1, P1C2, NewPos, P2C2 | _].
+%move piece b2
+move_piece([player2, Board, P1C1, P1C2, P2C1, P2C2 | _], (b2, Direction), NewGameState) :-
+    get_new_piece_positon(P2C2, Direction, NewPos),
+    NewGameState = [player2, Board, P1C1, P1C2, P2C1, NewPos | _].
+
+/*
+valid_moves_stones(+Board, +P1C1, +P1C2, +P2C1, +P2C2, +PieceDirection, -ListOfMoves)
+Description: Finds all valid stone moves for a given piece move.
+*/
+valid_moves_stones(Board, P1C1, P1C2, P2C1, P2C2, (Piece, Direction), ListOfMoves) :-
+    get_piece_position(Piece, P1C1, P1C2, P2C1, P2C2, OldPiecePos),
+    get_new_piece_positon(OldPiecePos, Direction, NewPiecePos),
+    find_least_stone_positions(Board, NewPiecePos, P1C1, P1C2, P2C1, P2C2, LeastStonePositions),
+    findall((OldStonePos, NewStonePos),
+        (
+            member(OldStonePos, LeastStonePositions),
+            find_unoccupied_positions(Board, OldStonePos, NewPiecePos, P1C1, P1C2, P2C1, P2C2, UnoccupiedPositions),
+            member(NewStonePos, UnoccupiedPositions)
+        ),
+        ListOfMoves).
 
 /*
 get_piece_position(+Piece, +P1C1, +P1C2, +P2C1, +P2C2, -Position)
-Description: Retrieves the current position of the specified piece.
+Description: Retrieves the position of the specified piece.
 */
 get_piece_position(w1, P1C1, _, _, _, P1C1).
 get_piece_position(w2, _, P1C2, _, _, P1C2).
