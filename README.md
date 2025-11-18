@@ -40,8 +40,8 @@ VLKNO is a two-player abstract strategy game played on a 5x5 grid covered with 2
 - **Winning the Game**: The game ends when a player cannot complete each step of their turn. The other player is declared the winner.
 
 ### Links Used:
-- [BoardGameGeek - VLKNO](https://boardgamegeek.com/boardgame/280615/vlkno)
-- [Official Rulebook](https://nestorgames.com/rulebooks/VLKNO_EN.pdf)
+- [BoardGameGeek - VLKNO](https://boardgamegeek.com/boardgame/427638/vlkno)
+- [Official Rulebook](docs/VLKNO_Rulebook_v1.2_pdf.pdf)
 
 ## 4. Considerations for Game Extensions
 
